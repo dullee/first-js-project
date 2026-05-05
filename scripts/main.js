@@ -1,3 +1,18 @@
+const http = require("node:http");
+
+const hostname = "127.0.0.1";
+const port = 3000;
+
+const server = http.createServer((req, res) => {
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "text/plain");
+  res.end("Hello, World!\n");
+});
+
+// server.listen(port, hostname, () => {
+//   console.log(`\nServer running at http://${hostname}:${port}/`);
+// });
+
 // let name = "Dulguun";
 // let age = "20";
 // let adress = "UB";
@@ -49,10 +64,9 @@
 //     }
 //   };
 // }
-
+var pawnPos =
+  0b0000000011111111000000000000000000000000000000001111111100000000n;
 function boardTerminal() {
-  var pawnPos =
-    0b0000000011111111000000000000000000000000000000001111111100000000n;
   let out = "";
   for (let column = 7; column >= 0; column--) {
     for (let row = 0; row < 8; row++) {
@@ -64,8 +78,44 @@ function boardTerminal() {
   }
   console.log(out);
 }
-boardTerminal();
 
+function movePawn(bitboard, fromSq, toSq) {
+  const fromMask = 1n << BigInt(fromSq);
+  const toMask = 1n << BigInt(toSq);
+
+  return bitboard ^ (fromMask | toMask);
+}
+
+function updateBoard(pawnPos) {
+  let out = "";
+  for (let column = 7; column >= 0; column--) {
+    for (let row = 0; row < 8; row++) {
+      const sq = column * 8 + row;
+      const bit = (pawnPos >> BigInt(sq)) & 1n;
+      out += bit ? "p " : "- ";
+    }
+    out += `\n`;
+  }
+  console.clear();
+  console.log(out);
+}
+
+const readline = require("node:readline/promises");
+const { stdin: input, stdout: output } = require("node:process");
+async function getInputs() {
+  const rl = readline.createInterface({ input, output });
+
+  const answer = await rl.question("Enter Move: ");
+  const [a, b] = answer.split(" ");
+
+  console.clear();
+  console.log(`Move pawn to: ${a} ${b}`);
+  pawnPos = movePawn(pawnPos, parseInt(a), parseInt(b));
+  updateBoard(pawnPos);
+  rl.close();
+}
+boardTerminal();
+getInputs();
 // draw();
 // placePieces();
 
