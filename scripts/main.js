@@ -64,44 +64,62 @@ const server = http.createServer((req, res) => {
 //     }
 //   };
 // }
-var pawnPos =
-  0b0000000011111111000000000000000000000000000000001111111100000000n;
+var whitePawns = 0x000000000000ff00n;
+var whiteRooks = 0x0000000000000081n;
+var whiteKnights = 0x0000000000000042n;
+var whiteBishops = 0x0000000000000024n;
+var whiteQueens = 0x0000000000000008n;
+var whiteKing = 0x0000000000000010n;
+
+var blackPawns = 0x00ff000000000000n;
+var blackRooks = 0x8100000000000000n;
+var blackKnights = 0x4200000000000000n;
+var blackBishops = 0x2400000000000000n;
+var blackQueens = 0x0800000000000000n;
+var blackKing = 0x1000000000000000n;
+
+function getSymbol(sq) {
+  const bit = BigInt(sq);
+  if ((whitePawns >> bit) & 1n) return "P";
+  if ((whiteRooks >> bit) & 1n) return "R";
+  if ((whiteKnights >> bit) & 1n) return "N";
+  if ((whiteBishops >> bit) & 1n) return "B";
+  if ((whiteQueens >> bit) & 1n) return "Q";
+  if ((whiteKing >> bit) & 1n) return "K";
+  if ((blackPawns >> bit) & 1n) return "p";
+  if ((blackRooks >> bit) & 1n) return "r";
+  if ((blackKnights >> bit) & 1n) return "n";
+  if ((blackBishops >> bit) & 1n) return "b";
+  if ((blackQueens >> bit) & 1n) return "q";
+  if ((blackKing >> bit) & 1n) return "k";
+  return "-";
+}
+
 function boardTerminal() {
   let out = "";
-  for (let column = 7; column >= 0; column--) {
-    for (let row = 0; row < 8; row++) {
-      const sq = column * 8 + row;
-      const bit = (pawnPos >> BigInt(sq)) & 1n;
-      out += bit ? "p " : "- ";
+
+  for (let rank = 7; rank >= 0; rank--) {
+    out += `${rank + 1} `;
+    for (let file = 0; file < 8; file++) {
+      const sq = rank * 8 + file;
+      out += getSymbol(sq) + " ";
     }
+
     out += `\n`;
+    if (rank == 0) {
+      out += "  a b c d e f g h";
+    }
   }
   console.log(out);
 }
 
-function movePawn(bitboard, fromSq, toSq) {
-  const fromMask = 1n << BigInt(fromSq);
-  const toMask = 1n << BigInt(toSq);
-
-  return bitboard ^ (fromMask | toMask);
-}
-
-function updateBoard(pawnPos) {
-  let out = "";
-  for (let column = 7; column >= 0; column--) {
-    for (let row = 0; row < 8; row++) {
-      const sq = column * 8 + row;
-      const bit = (pawnPos >> BigInt(sq)) & 1n;
-      out += bit ? "p " : "- ";
-    }
-    out += `\n`;
-  }
+function updateBoard() {
   console.clear();
-  console.log(out);
+  boardTerminal();
 }
-
 const readline = require("node:readline/promises");
 const { stdin: input, stdout: output } = require("node:process");
+const { log } = require("node:console");
 async function getInputs() {
   const rl = readline.createInterface({ input, output });
 
@@ -109,13 +127,36 @@ async function getInputs() {
   const [a, b] = answer.split(" ");
 
   console.clear();
+  pawnPos = movePiece(a, b);
+  updateBoard();
   console.log(`Move pawn to: ${a} ${b}`);
-  pawnPos = movePawn(pawnPos, parseInt(a), parseInt(b));
-  updateBoard(pawnPos);
+
   rl.close();
 }
+
+function squareToIndex(square) {
+  const file = square.charCodeAt(0) - 97;
+  const rank = parseInt(square[1]) - 1;
+  return rank * 8 + file;
+}
+
+function movePiece(from, to) {
+  const fromIndex = squareToIndex(from);
+  const toIndex = squareToIndex(to);
+  if (getSymbol(fromIndex) != "-") {
+    getSymbol(fromIndex) &= ~(1n << BigInt(fromIndex));
+    getSymbol(toIndex) |= 1n << BigInt(toIndex); //
+
+    updateBoard();
+    console.log("moved piece");
+  } else {
+    console.log("could not move piece");
+  }
+}
+
 boardTerminal();
-getInputs();
+// movePiece("a2", "a4");
+
 // draw();
 // placePieces();
 
