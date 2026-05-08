@@ -43,6 +43,31 @@ const pieceMap = [
   { board: "blackQueens", symbol: "q" },
   { board: "blackKing", symbol: "k" },
 ];
+function getWhitePieces() {
+  return (
+    boards.whitePawns |
+    boards.whiteRooks |
+    boards.whiteKnights |
+    boards.whiteBishops |
+    boards.whiteQueens |
+    boards.whiteKing
+  );
+}
+
+function getBlackPieces() {
+  return (
+    boards.blackPawns |
+    boards.blackRooks |
+    boards.blackKnights |
+    boards.blackBishops |
+    boards.blackQueens |
+    boards.blackKing
+  );
+}
+
+function getAllPieces() {
+  return getWhitePieces() | getBlackPieces();
+}
 
 function getSquare(sq) {
   const bit = BigInt(sq);
@@ -98,19 +123,53 @@ function squareToIndex(square) {
   return rank * 8 + file;
 }
 
+function isValidPawnMove(from, to, isWhite) {
+  const diff = to - from;
+
+  const oneStep = isWhite ? 8 : -8;
+  const twoStep = isWhite ? 16 : -16;
+  const startRank = isWhite ? 1 : 6;
+  const fromRank = Math.floor(from / 8);
+
+  const enemyPieces = isWhite ? getBlackPieces() : getWhitePieces();
+
+  if (diff === oneStep) {
+    return (getAllPieces() >> BigInt(to)) & 1n ? false : true;
+  }
+  if (fromRank === startRank && diff === twoStep) {
+    const middle = from + oneStep;
+    const middleEmpty = !((getAllPieces() >> BigInt(middle)) & 1n);
+    const destEmpty = !((getAllPieces() >> BigInt(to)) & 1n);
+    return middleEmpty && destEmpty;
+  }
+  const diagLeft = isWhite ? 7 : -7;
+  const diagRight = isWhite ? 9 : -9;
+  if (diff === diagLeft || diff === diagRight) {
+    return (enemyPieces >> BigInt(to)) & 1n ? true : false;
+  }
+
+  return false;
+}
+
 function movePiece(from, to) {
   const fromIndex = squareToIndex(from);
   const toIndex = squareToIndex(to);
   const piece = getSquare(fromIndex);
-  if (piece) {
-    boards[piece.board] &= ~(1n << BigInt(fromIndex));
-    boards[piece.board] |= 1n << BigInt(toIndex);
-
-    updateBoard();
-    console.log("moved piece");
-  } else {
-    console.log("could not move piece");
+  if (!piece) {
+    console.log("there is not piece at:", from);
   }
+  const isWhite = piece.board.startsWith("white");
+  if (piece.board.includes("Pawns")) {
+    if (!isValidPawnMove(fromIndex, toIndex, isWhite)) {
+      return console.log("not a valid pawn move");
+    }
+  }
+
+  boards[piece.board] &= ~(1n << BigInt(fromIndex));
+  boards[piece.board] |= 1n << BigInt(toIndex);
+
+  updateBoard();
+  console.log("moved piece");
 }
 
 boardTerminal();
