@@ -173,6 +173,36 @@ function isValidKnightMove(from, to, isWhite) {
   if ((ownPieces >> BigInt(to)) & 1n) return false;
   return true;
 }
+function isValidBishopMove(from, to, isWhite) {
+  const fromFile = from % 8;
+  const toFile = to % 8;
+  const fromRank = Math.floor(from / 8);
+  const toRank = Math.floor(to / 8);
+
+  const fileDiff = Math.abs(fromFile - toFile);
+  const rankDiff = Math.abs(fromRank - toRank);
+
+  // must move equal ranks and files to be diagonal
+  if (fileDiff !== rankDiff) return false;
+
+  // figure out which direction we are stepping
+  const fileStep = toFile > fromFile ? 1 : -1;
+  const rankStep = toRank > fromRank ? 1 : -1;
+  const step = rankStep * 8 + fileStep;
+
+  // walk every square between from and to
+  let current = from + step;
+  while (current !== to) {
+    if ((getAllPieces() >> BigInt(current)) & 1n) return false; // something is in the way
+    current += step;
+  }
+
+  // destination cant be your own piece
+  const ownPieces = isWhite ? getWhitePieces() : getBlackPieces();
+  if ((ownPieces >> BigInt(to)) & 1n) return false;
+
+  return true;
+}
 
 function movePiece(from, to) {
   const fromIndex = squareToIndex(from);
@@ -201,3 +231,7 @@ boardTerminal();
 movePiece("a2", "a4");
 movePiece("b1", "c3");
 movePiece("c3", "d5");
+movePiece("d2", "d3");
+movePiece("c1", "h6");
+movePiece("h6", "g7");
+movePiece("f8", "g7");
