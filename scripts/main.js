@@ -58,7 +58,20 @@ const defaultBoards = {
   blackQueens: 0x0800000000000000n,
   blackKing: 0x1000000000000000n,
 };
-
+const unicodePieces = {
+  K: "♔",
+  Q: "♕",
+  R: "♖",
+  B: "♗",
+  N: "♘",
+  P: "♙",
+  k: "♚",
+  q: "♛",
+  r: "♜",
+  b: "♝",
+  n: "♞",
+  p: "♟",
+};
 const pieceMap = [
   { board: "whitePawns", symbol: "P" },
   { board: "whiteRooks", symbol: "R" },
@@ -78,6 +91,12 @@ const moveValidators = {
   p: isValidPawnMove,
   N: isValidKnightMove,
   n: isValidKnightMove,
+  b: isValidBishopMove,
+  B: isValidBishopMove,
+  r: isValidRookMove,
+  R: isValidRookMove,
+  q: isValidQueenMove,
+  Q: isValidQueenMove,
 };
 function getWhitePieces() {
   return (
@@ -112,21 +131,6 @@ function getSquare(sq) {
   }
   return null;
 }
-
-const unicodePieces = {
-  K: "♔",
-  Q: "♕",
-  R: "♖",
-  B: "♗",
-  N: "♘",
-  P: "♙",
-  k: "♚",
-  q: "♛",
-  r: "♜",
-  b: "♝",
-  n: "♞",
-  p: "♟",
-};
 
 function renderBoard() {
   const table = document.createElement("table");
@@ -287,6 +291,35 @@ function isValidBishopMove(from, to, isWhite) {
 
   return true;
 }
+function isValidRookMove(from, to, isWhite) {
+  const fromFile = Math.floor(from % 8);
+  const toFile = Math.floor(to % 8);
+  const fromRank = Math.floor(from / 8);
+  const toRank = Math.floor(to / 8);
+  const sameFile = fromFile === toFile;
+  const sameRank = fromRank === toRank;
+  if (!sameFile && !sameRank) return false;
+
+  const fileStep = toFile > fromFile ? 1 : toFile < fromFile ? -1 : 0;
+  const rankStep = toRank > fromRank ? 1 : toRank < fromRank ? -1 : 0;
+  const step = rankStep * 8 + fileStep;
+  let current = from + step;
+  while (current !== to) {
+    if ((getAllPieces() >> BigInt(current)) & 1n) return false;
+    current += step;
+  }
+  // cant land on your own piece
+  const ownPieces = isWhite ? getWhitePieces() : getBlackPieces();
+  if ((ownPieces >> BigInt(to)) & 1n) return false;
+
+  return true;
+}
+function isValidQueenMove(from, to, isWhite) {
+  return (
+    isValidBishopMove(from, to, isWhite) || isValidRookMove(from, to, isWhite)
+  );
+}
+function isValidKingMove(from, to, isWhite) {}
 
 function movePiece(from, to) {
   const fromIndex = squareToIndex(from);
