@@ -43,6 +43,12 @@ const pieceMap = [
   { board: "blackQueens", symbol: "q" },
   { board: "blackKing", symbol: "k" },
 ];
+const moveValidators = {
+  P: isValidPawnMove,
+  p: isValidPawnMove,
+  N: isValidKnightMove,
+  n: isValidKnightMove,
+};
 function getWhitePieces() {
   return (
     boards.whitePawns |
@@ -85,7 +91,7 @@ function boardTerminal() {
     for (let file = 0; file < 8; file++) {
       const sq = rank * 8 + file;
       const piece = getSquare(sq);
-      out += piece ? piece.symbol + " " : "- ";
+      out += piece ? piece.symbol + " " : "■ ";
     }
 
     out += `\n`;
@@ -151,6 +157,23 @@ function isValidPawnMove(from, to, isWhite) {
   return false;
 }
 
+function isValidKnightMove(from, to, isWhite) {
+  const diff = Math.abs(to - from);
+  const validJumps = [17, 15, 10, 6];
+  // check it didnt wrap around the board edge
+  const fromFile = from % 8;
+  const toFile = to % 8;
+  const fileDiff = Math.abs(fromFile - toFile);
+
+  // a knight always moves 1 or 2 files, never more
+  if (fileDiff !== 1 && fileDiff !== 2) return false;
+
+  if (!validJumps.includes(diff)) return false;
+  const ownPieces = isWhite ? getWhitePieces() : getBlackPieces();
+  if ((ownPieces >> BigInt(to)) & 1n) return false;
+  return true;
+}
+
 function movePiece(from, to) {
   const fromIndex = squareToIndex(from);
   const toIndex = squareToIndex(to);
@@ -159,11 +182,13 @@ function movePiece(from, to) {
     console.log("there is not piece at:", from);
   }
   const isWhite = piece.board.startsWith("white");
-  if (piece.board.includes("Pawns")) {
-    if (!isValidPawnMove(fromIndex, toIndex, isWhite)) {
-      return console.log("not a valid pawn move");
-    }
+  const moveValid = moveValidators[piece.symbol];
+
+  if (moveValid && !moveValid(fromIndex, toIndex, isWhite)) {
+    return console.log("Not a valid", piece.board, "move.");
   }
+  const target = getSquare(toIndex);
+  if (target) boards[target.board] &= ~(1n << BigInt(toIndex));
 
   boards[piece.board] &= ~(1n << BigInt(fromIndex));
   boards[piece.board] |= 1n << BigInt(toIndex);
@@ -174,3 +199,5 @@ function movePiece(from, to) {
 
 boardTerminal();
 movePiece("a2", "a4");
+movePiece("b1", "c3");
+movePiece("c3", "d5");
