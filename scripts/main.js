@@ -1,19 +1,49 @@
-const http = require("node:http");
+// const http = require("node:http");
 
-const hostname = "127.0.0.1";
-const port = 3000;
+// const hostname = "127.0.0.1";
+// const port = 3000;
 
-const server = http.createServer((req, res) => {
-  res.statusCode = 200;
-  res.setHeader("Content-Type", "text/plain");
-  res.end("Hello, World!\n");
-});
+// const server = http.createServer((req, res) => {
+//   res.statusCode = 200;
+//   res.setHeader("Content-Type", "text/plain");
+//   res.end("Hello, World!\n");
+// });
 
 // server.listen(port, hostname, () => {
 //   console.log(`\nServer running at http://${hostname}:${port}/`);
 // });
+// const readline = require("node:readline/promises");
+// const { stdin: input, stdout: output } = require("node:process");
+// const { log } = require("node:console");
+// async function getInputs() {
+//   const rl = readline.createInterface({ input, output });
 
+//   const answer = await rl.question("Enter Move: ");
+//   const [a, b] = answer.split(" ");
+
+//   console.clear();
+//   pawnPos = movePiece(a, b);
+//   updateBoard();
+//   console.log(`Move pawn to: ${a} ${b}`);
+
+//   rl.close();
+// }
 var boards = {
+  whitePawns: 0x000000000000ff00n,
+  whiteRooks: 0x0000000000000081n,
+  whiteKnights: 0x0000000000000042n,
+  whiteBishops: 0x0000000000000024n,
+  whiteQueens: 0x0000000000000008n,
+  whiteKing: 0x0000000000000010n,
+
+  blackPawns: 0x00ff000000000000n,
+  blackRooks: 0x8100000000000000n,
+  blackKnights: 0x4200000000000000n,
+  blackBishops: 0x2400000000000000n,
+  blackQueens: 0x0800000000000000n,
+  blackKing: 0x1000000000000000n,
+};
+const defaultBoards = {
   whitePawns: 0x000000000000ff00n,
   whiteRooks: 0x0000000000000081n,
   whiteKnights: 0x0000000000000042n,
@@ -83,44 +113,98 @@ function getSquare(sq) {
   return null;
 }
 
-function boardTerminal() {
-  let out = "";
+const unicodePieces = {
+  K: "♔",
+  Q: "♕",
+  R: "♖",
+  B: "♗",
+  N: "♘",
+  P: "♙",
+  k: "♚",
+  q: "♛",
+  r: "♜",
+  b: "♝",
+  n: "♞",
+  p: "♟",
+};
+
+function renderBoard() {
+  const table = document.createElement("table");
+  table.style.borderCollapse = "collapse";
 
   for (let rank = 7; rank >= 0; rank--) {
-    out += `${rank + 1} `;
+    const row = document.createElement("tr");
+
     for (let file = 0; file < 8; file++) {
       const sq = rank * 8 + file;
       const piece = getSquare(sq);
-      out += piece ? piece.symbol + " " : "■ ";
+      const cell = document.createElement("td");
+
+      cell.style.width = "68px";
+      cell.style.height = "68px";
+      cell.style.textAlign = "center";
+      cell.style.fontSize = "48px";
+      cell.style.cursor = piece ? "grab" : "default";
+      cell.style.background = (rank + file) % 2 === 0 ? "#b58863" : "#f0d9b5";
+      cell.dataset.sq = sq; // store the index on the cell
+
+      cell.textContent = piece ? unicodePieces[piece.symbol] : "";
+
+      // drag events
+      if (piece) {
+        cell.draggable = true;
+        cell.addEventListener("dragstart", (e) => {
+          e.dataTransfer.setData("from", sq); // store where we dragged from
+        });
+      }
+
+      cell.addEventListener("dragover", (e) => {
+        e.preventDefault(); // required to allow dropping
+      });
+
+      cell.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const fromIndex = parseInt(e.dataTransfer.getData("from"));
+        const toIndex = parseInt(cell.dataset.sq);
+        const fromSq = indexToSquare(fromIndex);
+        const toSq = indexToSquare(toIndex);
+        movePiece(fromSq, toSq);
+        renderBoard();
+      });
+
+      row.appendChild(cell);
     }
 
-    out += `\n`;
-    if (rank == 0) {
-      out += "  a b c d e f g h";
-    }
+    table.appendChild(row);
   }
-  console.log(out);
+
+  document.getElementById("board").innerHTML = "";
+  document.getElementById("board").appendChild(table);
+}
+
+document
+  .getElementById("boardResetButton")
+  .addEventListener("click", function () {
+    Object.assign(boards, defaultBoards);
+    renderBoard();
+  });
+function resetBoard() {
+  const button = document.getElementById("boardResetButton");
+  button.addEventListener("click", function () {
+    Object.assign(boards, defaultBoards);
+    renderBoard();
+    console.log("reset board");
+  });
 }
 
 function updateBoard() {
-  console.clear();
-  boardTerminal();
+  renderBoard();
 }
-const readline = require("node:readline/promises");
-const { stdin: input, stdout: output } = require("node:process");
-const { log } = require("node:console");
-async function getInputs() {
-  const rl = readline.createInterface({ input, output });
 
-  const answer = await rl.question("Enter Move: ");
-  const [a, b] = answer.split(" ");
-
-  console.clear();
-  pawnPos = movePiece(a, b);
-  updateBoard();
-  console.log(`Move pawn to: ${a} ${b}`);
-
-  rl.close();
+function indexToSquare(index) {
+  const file = String.fromCharCode(97 + (index % 8)); // 0='a', 1='b' etc
+  const rank = Math.floor(index / 8) + 1;
+  return file + rank;
 }
 
 function squareToIndex(square) {
@@ -227,11 +311,4 @@ function movePiece(from, to) {
   console.log("moved piece");
 }
 
-boardTerminal();
-movePiece("a2", "a4");
-movePiece("b1", "c3");
-movePiece("c3", "d5");
-movePiece("d2", "d3");
-movePiece("c1", "h6");
-movePiece("h6", "g7");
-movePiece("f8", "g7");
+renderBoard();
