@@ -44,6 +44,8 @@ var boards = {
   blackKing: 0x1000000000000000n,
 };
 const defaultBoards = {
+  notMovedPieces:
+    1111111111111111000000000000000000000000000000001111111111111111n,
   whitePawns: 0x000000000000ff00n,
   whiteRooks: 0x0000000000000081n,
   whiteKnights: 0x0000000000000042n,
@@ -97,7 +99,16 @@ const moveValidators = {
   R: isValidRookMove,
   q: isValidQueenMove,
   Q: isValidQueenMove,
+  k: isValidKingMove,
+  K: isValidKingMove,
 };
+var castling = {
+  whiteKingSide: true,
+  whiteQueenSide: true,
+  blackKingSide: true,
+  blackQueenSide: true,
+};
+
 function getWhitePieces() {
   return (
     boards.whitePawns |
@@ -311,7 +322,17 @@ function isValidRookMove(from, to, isWhite) {
   // cant land on your own piece
   const ownPieces = isWhite ? getWhitePieces() : getBlackPieces();
   if ((ownPieces >> BigInt(to)) & 1n) return false;
+  const rookPositions = {
+    0: "whiteQueenSide",
+    7: "whiteKingSide",
+    56: "blackQueenSide",
+    63: "blackKingSide",
+  };
+  const side = rookPositions[from];
 
+  if (castling[side]) {
+    castling[side] = false;
+  }
   return true;
 }
 function isValidQueenMove(from, to, isWhite) {
@@ -319,7 +340,103 @@ function isValidQueenMove(from, to, isWhite) {
     isValidBishopMove(from, to, isWhite) || isValidRookMove(from, to, isWhite)
   );
 }
-function isValidKingMove(from, to, isWhite) {}
+function isValidKingMove(from, to, isWhite) {
+  const fromFile = from % 8;
+  const toFile = to % 8;
+  const fromRank = Math.floor(from / 8);
+  const toRank = Math.floor(to / 8);
+
+  const fileDiff = Math.abs(fromFile - toFile);
+  const rankDiff = Math.abs(fromRank - toRank);
+
+  // can only move one square in any direction
+  if (fileDiff > 1 || rankDiff > 1) return false;
+
+  // cant stay in place
+  if (fileDiff === 0 && rankDiff === 0) return false;
+
+  // cant land on your own piece
+  const ownPieces = isWhite ? getWhitePieces() : getBlackPieces();
+  if ((ownPieces >> BigInt(to)) & 1n) return false;
+  if (isWhite && (castling.whiteKingSide || castling.whiteQueenSide)) {
+    castling.whiteKingSide = false;
+    castling.whiteQueenSide = false;
+  } else if (castling.blackKingSide || castling.blackQueenSide) {
+    castling.blackKingSide = false;
+    castling.blackQueenSide = false;
+  }
+  return true;
+}
+function isValidCastle(from, to, isWhite) {
+  const diff = to - from;
+  const kingSide = diff === 2;
+  const queenSide = diff === -2;
+  if (!kingSide && !queenSide) return false;
+
+  if (isWhite && kingSide && !castling.whiteKingSide) return false;
+  if (isWhite && queenSide && !castling.whiteQueenSide) return false;
+  if (!isWhite && kingSide && !castling.blackKingSide) return false;
+  if (!isWhite && queenSide && !castling.blackQueenSide) return false;
+
+  const between = kingSide
+    ? [from + 1, from + 2]
+    : [from - 1, from - 2, from - 3];
+
+  for (const sq of between) {
+    if ((getAllPieces() >> BigInt(sq)) & 1n) return false;
+  }
+  const passingThrough = kingSide ? from + 1 : from - 1;
+  if (isSquareAttacked(from, !isWhite)) return false;
+  if (isSquareAttacked(passingThrough, !isWhite)) return false;
+  if (isSquareAttacked(to, !isWhite)) return false;
+
+  return true;
+}
+function performCastle(from, to, isWhite) {
+  const kingSide = to > from;
+
+  // move the king
+  boards[isWhite ? "whiteKing" : "blackKing"] &= ~(1n << BigInt(from));
+  boards[isWhite ? "whiteKing" : "blackKing"] |= 1n << BigInt(to);
+
+  // move the rook
+  if (isWhite) {
+    if (kingSide) {
+      boards.whiteRooks &= ~(1n << 7n); // remove from h1
+      boards.whiteRooks |= 1n << 5n; // place on f1
+    } else {
+      boards.whiteRooks &= ~(1n << 0n); // remove from a1
+      boards.whiteRooks |= 1n << 3n; // place on d1
+    }
+    castling.whiteKingSide = false;
+    castling.whiteQueenSide = false;
+  } else {
+    if (kingSide) {
+      boards.blackRooks &= ~(1n << 63n); // remove from h8
+      boards.blackRooks |= 1n << 61n; // place on f8
+    } else {
+      boards.blackRooks &= ~(1n << 56n); // remove from a8
+      boards.blackRooks |= 1n << 59n; // place on d8
+    }
+    castling.blackKingSide = false;
+    castling.blackQueenSide = false;
+  }
+}
+function isSquareAttacked(index, byWhite) {
+  // check if any enemy piece can move to this square
+  const enemyPieces = byWhite ? getWhitePieces() : getBlackPieces();
+  let bb = enemyPieces;
+  while (bb) {
+    const sq = Number(BigInt.asUintN(64, bb & -bb).toString(2).length) - 1;
+    const attacker = getSquare(sq);
+    if (attacker) {
+      const validator = moveValidators[attacker.symbol];
+      if (validator && validator(sq, index, byWhite)) return true;
+    }
+    bb &= bb - 1n;
+  }
+  return false;
+}
 
 function movePiece(from, to) {
   const fromIndex = squareToIndex(from);
@@ -329,6 +446,17 @@ function movePiece(from, to) {
     console.log("there is not piece at:", from);
   }
   const isWhite = piece.board.startsWith("white");
+  if (
+    (piece.symbol === "K" || piece.symbol === "k") &&
+    Math.abs(toIndex - fromIndex) === 2
+  ) {
+    if (!isValidCastle(fromIndex, toIndex, isWhite))
+      return console.log("invalid castle");
+    performCastle(fromIndex, toIndex, isWhite);
+    updateBoard();
+    return;
+  }
+
   const moveValid = moveValidators[piece.symbol];
 
   if (moveValid && !moveValid(fromIndex, toIndex, isWhite)) {

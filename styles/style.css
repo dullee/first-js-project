@@ -22,7 +22,10 @@ html {
 body {
   width: 800px;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
 
+  flex-direction: column;
   padding: 0 20px 20px 20px;
 }
 
@@ -36,4 +39,8 @@ h1 {
 img {
   display: block;
   margin: 0 auto;
+}
+#board {
+  margin-top: 100px;
+  border: 5px solid black;
 }
