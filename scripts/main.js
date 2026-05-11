@@ -108,6 +108,7 @@ var castling = {
   blackKingSide: true,
   blackQueenSide: true,
 };
+let isWhiteTurn = true;
 
 function getWhitePieces() {
   return (
@@ -446,6 +447,8 @@ function movePiece(from, to) {
     console.log("there is not piece at:", from);
   }
   const isWhite = piece.board.startsWith("white");
+  if (isWhite !== isWhiteTurn) return console.log("Not your turn!");
+
   if (
     (piece.symbol === "K" || piece.symbol === "k") &&
     Math.abs(toIndex - fromIndex) === 2
@@ -453,6 +456,7 @@ function movePiece(from, to) {
     if (!isValidCastle(fromIndex, toIndex, isWhite))
       return console.log("invalid castle");
     performCastle(fromIndex, toIndex, isWhite);
+    isWhiteTurn = !isWhiteTurn;
     updateBoard();
     return;
   }
@@ -467,7 +471,7 @@ function movePiece(from, to) {
 
   boards[piece.board] &= ~(1n << BigInt(fromIndex));
   boards[piece.board] |= 1n << BigInt(toIndex);
-
+  isWhiteTurn = !isWhiteTurn;
   updateBoard();
   console.log("moved piece");
 }
