@@ -202,13 +202,15 @@ document
   .getElementById("boardResetButton")
   .addEventListener("click", function () {
     Object.assign(boards, defaultBoards);
-    renderBoard();
+    resetBoard();
   });
 function resetBoard() {
   const button = document.getElementById("boardResetButton");
   button.addEventListener("click", function () {
+    isWhiteTurn = true;
     Object.assign(boards, defaultBoards);
     renderBoard();
+
     console.log("reset board");
   });
 }
@@ -250,8 +252,10 @@ function isValidPawnMove(from, to, isWhite) {
   }
   const diagLeft = isWhite ? 7 : -7;
   const diagRight = isWhite ? 9 : -9;
-  if (diff === diagLeft || diff === diagRight) {
-    return (enemyPieces >> BigInt(to)) & 1n ? true : false;
+  if (diff === diagLeft) {
+    return (enemyPieces >> BigInt(from - 1)) & 1n ? true : false;
+  } else if (diff === diagRight) {
+    return (enemyPieces >> BigInt(from + 1)) & 1n ? true : false;
   }
 
   return false;
@@ -462,12 +466,38 @@ function movePiece(from, to) {
   }
 
   const moveValid = moveValidators[piece.symbol];
+  let target = getSquare(toIndex);
+  if (target) {
+    boards[target.board] &= ~(1n << BigInt(toIndex));
+    console.log("taking:", boards[target.board]);
+  }
+  if (piece.symbol === "p") {
+    console.log("black pawn");
 
+    if (toIndex - fromIndex === -7) {
+      target = getSquare(fromIndex + 1);
+      boards[target.board] &= ~(1n << BigInt(fromIndex + 1));
+    } else if (toIndex - fromIndex === -9) {
+      target = getSquare(fromIndex - 1);
+      boards[target.board] &= ~(1n << BigInt(fromIndex - 1));
+    }
+  } else if (piece.symbol === "P") {
+    console.log("white pawn");
+
+    if (toIndex - fromIndex === 7) {
+      target = getSquare(fromIndex - 1);
+      boards[target.board] &= ~(1n << BigInt(fromIndex - 1));
+    } else if (toIndex - fromIndex === 9) {
+      target = getSquare(fromIndex + 1);
+      boards[target.board] &= ~(1n << BigInt(fromIndex + 1));
+
+      console.log("target:", target.board);
+    }
+  }
   if (moveValid && !moveValid(fromIndex, toIndex, isWhite)) {
     return console.log("Not a valid", piece.board, "move.");
   }
-  const target = getSquare(toIndex);
-  if (target) boards[target.board] &= ~(1n << BigInt(toIndex));
+  if(enPassant)
 
   boards[piece.board] &= ~(1n << BigInt(fromIndex));
   boards[piece.board] |= 1n << BigInt(toIndex);
