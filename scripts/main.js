@@ -475,21 +475,23 @@ function movePiece(from, to) {
     console.log("black pawn");
 
     if (toIndex - fromIndex === -7) {
-      target = getSquare(fromIndex + 1);
-      boards[target.board] &= ~(1n << BigInt(fromIndex + 1));
+      var targetIndex = fromIndex + 1;
+
+      target = getSquare(targetIndex);
     } else if (toIndex - fromIndex === -9) {
-      target = getSquare(fromIndex - 1);
-      boards[target.board] &= ~(1n << BigInt(fromIndex - 1));
+      var targetIndex = fromIndex - 1;
+
+      target = getSquare(targetIndex);
     }
   } else if (piece.symbol === "P") {
     console.log("white pawn");
 
     if (toIndex - fromIndex === 7) {
-      target = getSquare(fromIndex - 1);
-      boards[target.board] &= ~(1n << BigInt(fromIndex - 1));
+      var targetIndex = fromIndex - 1;
+      target = getSquare(targetIndex);
     } else if (toIndex - fromIndex === 9) {
-      target = getSquare(fromIndex + 1);
-      boards[target.board] &= ~(1n << BigInt(fromIndex + 1));
+      var targetIndex = fromIndex + 1;
+      target = getSquare(targetIndex);
 
       console.log("target:", target.board);
     }
@@ -497,7 +499,8 @@ function movePiece(from, to) {
   if (moveValid && !moveValid(fromIndex, toIndex, isWhite)) {
     return console.log("Not a valid", piece.board, "move.");
   }
-  if (enPassant) {
+  if (target && targetIndex) {
+    boards[target.board] &= ~(1n << BigInt(targetIndex));
   }
 
   boards[piece.board] &= ~(1n << BigInt(fromIndex));
