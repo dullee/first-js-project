@@ -497,7 +497,8 @@ function movePiece(from, to) {
   if (moveValid && !moveValid(fromIndex, toIndex, isWhite)) {
     return console.log("Not a valid", piece.board, "move.");
   }
-  if(enPassant)
+  if (enPassant) {
+  }
 
   boards[piece.board] &= ~(1n << BigInt(fromIndex));
   boards[piece.board] |= 1n << BigInt(toIndex);
