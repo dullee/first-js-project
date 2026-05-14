@@ -443,6 +443,53 @@ function isSquareAttacked(index, byWhite) {
   return false;
 }
 
+function isInCheck(isWhite) {
+  const kingBoard = isWhite ? boards.whiteKing : boards.blackKing;
+  const kingIndex =
+    Number(BigInt.asUintN(64, kingBoard).toString(2).length) - 1;
+  return isSquareAttacked(kingIndex, !isWhite);
+}
+
+function hasLegalMoves(isWhite) {
+  const pieces = isWhite ? getWhitePieces() : getBlackPieces();
+  let bb = pieces;
+  while (bb) {
+    const sq = Number(BigInt.asUintN(64, bb & -bb).toString(2).length) - 1;
+    const piece = getSquare(sq);
+    const validator = moveValidators[piece.symbol];
+
+    // try every possible destination square
+    for (let to = 0; to < 64; to++) {
+      if (validator && validator(sq, to, isWhite)) {
+        // simulate the move
+        const savedBoards = { ...boards };
+        const target = getSquare(to);
+        if (target) boards[target.board] &= ~(1n << BigInt(to));
+        boards[piece.board] &= ~(1n << BigInt(sq));
+        boards[piece.board] |= 1n << BigInt(to);
+
+        const stillInCheck = isInCheck(isWhite);
+
+        // undo the move
+        Object.assign(boards, savedBoards);
+
+        if (!stillInCheck) return true; // found at least one legal move
+      }
+    }
+
+    bb &= bb - 1n;
+  }
+
+  return false; // no legal moves found
+}
+function isCheckmate(isWhite) {
+  return isInCheck(isWhite) && !hasLegalMoves(isWhite);
+}
+
+function isStalemate(isWhite) {
+  return !isInCheck(isWhite) && !hasLegalMoves(isWhite);
+}
+
 function movePiece(from, to) {
   const fromIndex = squareToIndex(from);
   const toIndex = squareToIndex(to);
@@ -467,9 +514,8 @@ function movePiece(from, to) {
 
   const moveValid = moveValidators[piece.symbol];
   let target = getSquare(toIndex);
-  if (target) {
-    boards[target.board] &= ~(1n << BigInt(toIndex));
-    console.log("taking:", boards[target.board]);
+  if (moveValid && !moveValid(fromIndex, toIndex, isWhite)) {
+    return console.log("Not a valid", piece.board, "move.");
   }
   if (piece.symbol === "p") {
     console.log("black pawn");
@@ -496,16 +542,34 @@ function movePiece(from, to) {
       console.log("target:", target.board);
     }
   }
-  if (moveValid && !moveValid(fromIndex, toIndex, isWhite)) {
-    return console.log("Not a valid", piece.board, "move.");
+
+  if (target) {
+    boards[target.board] &= ~(1n << BigInt(toIndex));
+    console.log("taking:", boards[target.board]);
   }
-  if (target && targetIndex) {
-    boards[target.board] &= ~(1n << BigInt(targetIndex));
+  const savedBoards = { ...boards };
+
+  if (isInCheck(isWhite)) {
+    Object.assign(boards, savedBoards); // undo
+    return console.log("move leaves king in check");
   }
 
-  boards[piece.board] &= ~(1n << BigInt(fromIndex));
-  boards[piece.board] |= 1n << BigInt(toIndex);
   isWhiteTurn = !isWhiteTurn;
+  if (isCheckmate(!isWhite)) {
+    renderBoard();
+    alert(isWhite ? "White wins! Checkmate!" : "Black wins! Checkmate!");
+    return;
+  }
+
+  if (isStalemate(!isWhite)) {
+    renderBoard();
+    alert("Stalemate! Draw!");
+    return;
+  }
+
+  if (isInCheck(!isWhite)) {
+    console.log(!isWhite ? "White is in check" : "Black is in check");
+  }
   updateBoard();
   console.log("moved piece");
 }
