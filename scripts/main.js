@@ -553,7 +553,8 @@ function movePiece(from, to) {
     Object.assign(boards, savedBoards); // undo
     return console.log("move leaves king in check");
   }
-
+  boards[piece.board] &= ~(1n << BigInt(fromIndex));
+  boards[piece.board] |= 1n << BigInt(toIndex);
   isWhiteTurn = !isWhiteTurn;
   if (isCheckmate(!isWhite)) {
     renderBoard();
@@ -570,6 +571,7 @@ function movePiece(from, to) {
   if (isInCheck(!isWhite)) {
     console.log(!isWhite ? "White is in check" : "Black is in check");
   }
+
   updateBoard();
   console.log("moved piece");
 }
