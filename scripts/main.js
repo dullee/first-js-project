@@ -253,10 +253,15 @@ function isValidPawnMove(from, to, isWhite) {
   const diagLeft = isWhite ? 7 : -7;
   const diagRight = isWhite ? 9 : -9;
   if (diff === diagLeft) {
-    return (enemyPieces >> BigInt(from - 1)) & 1n ? true : false;
+    console.log("left");
+
+    return (enemyPieces >> BigInt(to)) & 1n ? true : false;
   } else if (diff === diagRight) {
-    return (enemyPieces >> BigInt(from + 1)) & 1n ? true : false;
+    console.log("right");
+
+    return (enemyPieces >> BigInt(to)) & 1n ? true : false;
   }
+  console.log("not valid move", diff, diagLeft, diagRight);
 
   return false;
 }
@@ -521,29 +526,19 @@ function movePiece(from, to) {
   if (moveValid && !moveValid(fromIndex, toIndex, isWhite)) {
     return console.log("Not a valid", piece.board, "move.");
   }
-  if (piece.symbol === "p") {
-    console.log("black pawn");
+  const fromRank = Math.floor(fromIndex / 8);
+  const correctRank = isWhite ? fromRank === 4 : fromRank === 3;
+  if (piece.symbol === "P" || (piece.symbol === "p" && correctRank)) {
+    const diff = toIndex - fromIndex;
 
-    if (toIndex - fromIndex === -7) {
-      var targetIndex = fromIndex + 1;
+    const adjacentSquare =
+      diff === (isWhite ? 9 : -9) ? fromIndex + 1 : fromIndex - 1;
+    const enemyPawns = isWhite ? boards.blackPawns : boards.whitePawns;
 
-      target = getSquare(targetIndex);
-    } else if (toIndex - fromIndex === -9) {
-      var targetIndex = fromIndex - 1;
-
-      target = getSquare(targetIndex);
-    }
-  } else if (piece.symbol === "P") {
-    console.log("white pawn");
-
-    if (toIndex - fromIndex === 7) {
-      var targetIndex = fromIndex - 1;
-      target = getSquare(targetIndex);
-    } else if (toIndex - fromIndex === 9) {
-      var targetIndex = fromIndex + 1;
-      target = getSquare(targetIndex);
-
-      console.log("target:", target.board);
+    if ((enemyPawns >> BigInt(adjacentSquare)) & 1n) {
+      boards[isWhite ? "blackPawns" : "whitePawns"] &= ~(
+        1n << BigInt(adjacentSquare)
+      );
     }
   }
 
