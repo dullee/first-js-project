@@ -436,7 +436,11 @@ function isSquareAttacked(index, byWhite) {
     const attacker = getSquare(sq);
     if (attacker) {
       const validator = moveValidators[attacker.symbol];
-      if (validator && validator(sq, index, byWhite)) return true;
+      if (validator && validator(sq, index, byWhite)) {
+        console.log("found attacking piece", index, attacker);
+
+        return true;
+      }
     }
     bb &= bb - 1n;
   }
@@ -546,15 +550,17 @@ function movePiece(from, to) {
   if (target) {
     boards[target.board] &= ~(1n << BigInt(toIndex));
     console.log("taking:", boards[target.board]);
+  } else {
+    console.log("no target", target);
   }
   const savedBoards = { ...boards };
-
+  boards[piece.board] &= ~(1n << BigInt(fromIndex));
+  boards[piece.board] |= 1n << BigInt(toIndex);
   if (isInCheck(isWhite)) {
     Object.assign(boards, savedBoards); // undo
     return console.log("move leaves king in check");
   }
-  boards[piece.board] &= ~(1n << BigInt(fromIndex));
-  boards[piece.board] |= 1n << BigInt(toIndex);
+
   isWhiteTurn = !isWhiteTurn;
   if (isCheckmate(!isWhite)) {
     renderBoard();
