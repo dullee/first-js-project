@@ -261,7 +261,6 @@ function isValidPawnMove(from, to, isWhite) {
 
     return (enemyPieces >> BigInt(to)) & 1n ? true : false;
   }
-  console.log("not valid move", diff, diagLeft, diagRight);
 
   return false;
 }
@@ -498,6 +497,45 @@ function isCheckmate(isWhite) {
 function isStalemate(isWhite) {
   return !isInCheck(isWhite) && !hasLegalMoves(isWhite);
 }
+let whiteTimeLeft = 600;
+let blackTimeLeft = 600;
+let timerId;
+const timerText = document.getElementById("timerText");
+const timerCon = document.getElementById("timerContainer");
+
+function startTimer() {
+  clearInterval(timerId);
+
+  timerId = setInterval(() => {
+    if (isWhiteTurn) {
+      whiteTimeLeft--;
+      updateTimerText(whiteTimeLeft);
+    } else {
+      blackTimeLeft--;
+      updateTimerText(blackTimeLeft);
+    }
+
+    if (whiteTimeLeft === 0 && isWhiteTurn) {
+      clearInterval(timerId);
+      console.log("White Ran out of Time");
+    } else if (blackTimeLeft === 0 && !isWhiteTurn) {
+      clearInterval(timerId);
+      console.log("Black Ran out of Time");
+    }
+  }, 1000);
+}
+function updateTimerText(timeLeft) {
+  const timerMinute = Math.floor(timeLeft / 60);
+  const timerSeconds = timeLeft % 60;
+  timerText.textContent =
+    "Time: " +
+    timerMinute +
+    ":" +
+    (timerSeconds < 10 ? "0" : "") +
+    timerSeconds;
+  timerText.style.color = isWhiteTurn ? "black" : "white";
+  timerCon.style.backgroundColor = isWhiteTurn ? "white" : "black";
+}
 
 function movePiece(from, to) {
   const fromIndex = squareToIndex(from);
@@ -546,7 +584,6 @@ function movePiece(from, to) {
     boards[target.board] &= ~(1n << BigInt(toIndex));
     console.log("taking:", boards[target.board]);
   } else {
-    console.log("no target", target);
   }
   const savedBoards = { ...boards };
   boards[piece.board] &= ~(1n << BigInt(fromIndex));
@@ -557,6 +594,7 @@ function movePiece(from, to) {
   }
 
   isWhiteTurn = !isWhiteTurn;
+  startTimer();
   if (isCheckmate(!isWhite)) {
     renderBoard();
     alert(isWhite ? "White wins! Checkmate!" : "Black wins! Checkmate!");
@@ -578,3 +616,4 @@ function movePiece(from, to) {
 }
 
 renderBoard();
+startTimer();
