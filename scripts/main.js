@@ -210,7 +210,8 @@ function resetBoard() {
     isWhiteTurn = true;
     Object.assign(boards, defaultBoards);
     renderBoard();
-
+    whiteTimeLeft = 600;
+    blackTimeLeft = 600;
     console.log("reset board");
   });
 }
@@ -497,15 +498,15 @@ function isCheckmate(isWhite) {
 function isStalemate(isWhite) {
   return !isInCheck(isWhite) && !hasLegalMoves(isWhite);
 }
-let whiteTimeLeft = 600;
-let blackTimeLeft = 600;
+let whiteTimeLeft = 601;
+let blackTimeLeft = 601;
 let timerId;
 const timerText = document.getElementById("timerText");
+timerText.textContent = "Time: 10:00";
 const timerCon = document.getElementById("timerContainer");
 
 function startTimer() {
   clearInterval(timerId);
-
   timerId = setInterval(() => {
     if (isWhiteTurn) {
       whiteTimeLeft--;
