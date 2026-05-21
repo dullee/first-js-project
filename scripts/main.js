@@ -29,6 +29,7 @@
 //   rl.close();
 // }
 var boards = {
+  notMovedPieces: 0xffff00000000ffffn,
   whitePawns: 0x000000000000ff00n,
   whiteRooks: 0x0000000000000081n,
   whiteKnights: 0x0000000000000042n,
@@ -44,8 +45,7 @@ var boards = {
   blackKing: 0x1000000000000000n,
 };
 const defaultBoards = {
-  notMovedPieces:
-    1111111111111111000000000000000000000000000000001111111111111111n,
+  notMovedPieces: 0xffff00000000ffffn,
   whitePawns: 0x000000000000ff00n,
   whiteRooks: 0x0000000000000081n,
   whiteKnights: 0x0000000000000042n,
@@ -196,24 +196,18 @@ function renderBoard() {
 
   document.getElementById("board").innerHTML = "";
   document.getElementById("board").appendChild(table);
+  applyDebugLayer();
 }
 
-document
-  .getElementById("boardResetButton")
-  .addEventListener("click", function () {
-    Object.assign(boards, defaultBoards);
-    resetBoard();
-  });
 function resetBoard() {
-  const button = document.getElementById("boardResetButton");
-  button.addEventListener("click", function () {
-    isWhiteTurn = true;
-    Object.assign(boards, defaultBoards);
-    renderBoard();
-    whiteTimeLeft = 600;
-    blackTimeLeft = 600;
-    console.log("reset board");
-  });
+  isWhiteTurn = true;
+  Object.assign(boards, defaultBoards);
+  if (boards.notMovedPieces == defaultBoards.not) console.log("same");
+
+  renderBoard();
+  whiteTimeLeft = 600;
+  blackTimeLeft = 600;
+  console.log("reset board");
 }
 
 function updateBoard() {
@@ -481,11 +475,9 @@ function hasLegalMoves(isWhite) {
 
         // undo the move
         Object.assign(boards, savedBoards);
-
         if (!stillInCheck) return true; // found at least one legal move
       }
     }
-
     bb &= bb - 1n;
   }
 
@@ -582,18 +574,21 @@ function movePiece(from, to) {
   }
 
   if (target) {
+    if ((boards.notMovedPieces >> BigInt(toIndex)) & 1n) {
+      boards.notMovedPieces &= ~(1n << BigInt(toIndex));
+    }
     boards[target.board] &= ~(1n << BigInt(toIndex));
     console.log("taking:", boards[target.board]);
-  } else {
   }
   const savedBoards = { ...boards };
   boards[piece.board] &= ~(1n << BigInt(fromIndex));
   boards[piece.board] |= 1n << BigInt(toIndex);
+  boards.notMovedPieces &= ~(1n << BigInt(fromIndex));
   if (isInCheck(isWhite)) {
     Object.assign(boards, savedBoards); // undo
+    boards[target.board] |= 1n << BigInt(toIndex);
     return console.log("move leaves king in check");
   }
-
   isWhiteTurn = !isWhiteTurn;
   startTimer();
   if (isCheckmate(!isWhite)) {
@@ -614,6 +609,77 @@ function movePiece(from, to) {
 
   updateBoard();
   console.log("moved piece");
+}
+
+function displayDebugMenu() {
+  const container = document.getElementById("debugMenuContainer");
+  container.classList.toggle("show");
+}
+const debug = {
+  nonMoved: false,
+  enPassant: false,
+  attacked: false,
+  checkmate: false,
+};
+const debugBoards = {
+  enPassant: 0n,
+  attacked: 0n,
+};
+function applyDebugLayer() {
+  const cells = document.querySelectorAll("td");
+
+  cells.forEach((cell) => {
+    // reset any debug highlights first
+    const sq = parseInt(cell.dataset.sq);
+    const rank = Math.floor(sq / 8);
+    const file = sq % 8;
+    cell.style.backgroundColor =
+      (rank + file) % 2 === 0 ? "#b58863" : "#f0d9b5";
+    cell.style.outline = "none";
+  });
+
+  if (!Object.values(debug).some(Boolean)) return; // nothing enabled, skip
+
+  cells.forEach((cell) => {
+    const sq = parseInt(cell.dataset.sq);
+    const bit = BigInt(sq);
+
+    if (debug.nonMoved && (boards.notMovedPieces >> bit) & 1n) {
+      cell.style.backgroundColor = "steelblue";
+    }
+
+    if (debug.enPassant && (debugBoards.enPassant >> bit) & 1n) {
+      cell.style.backgroundColor = "mediumpurple";
+    }
+
+    if (debug.attacked && (debugBoards.attacked >> bit) & 1n) {
+      cell.style.outline = "2px solid red";
+    }
+  });
+}
+
+function updateDebugBoards() {
+  // en passant — set the bit for the adjacent square
+  // debugBoards.enPassant = 0n;
+  // if (enPassantSquare !== null) {
+  //   // find pawns on rank 5 (white) or rank 4 (black) next to the en passant file
+  //   const rank = isWhiteTurn ? 4 : 3; // rank 5 for white to capture, rank 4 for black
+  //   const sq = rank * 8 + enPassantSquare;
+  //   debugBoards.enPassant |= 1n << BigInt(sq);
+  // }
+
+  // attacked squares — every square the current enemy can attack
+  debugBoards.attacked = 0n;
+  for (let sq = 0; sq < 64; sq++) {
+    if (isSquareAttacked(sq, !isWhiteTurn)) {
+      debugBoards.attacked |= 1n << BigInt(sq);
+    }
+  }
+}
+
+function toggleDebug(key) {
+  debug[key] = !debug[key];
+  renderBoard();
 }
 
 renderBoard();

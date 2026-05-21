@@ -59,3 +59,13 @@ img {
   width: 85px;
   padding: 0px 20px;
 }
+#debugMenuContainer {
+  display: none;
+  position: absolute;
+  background-color: darkgray;
+  left: -500px;
+  width: 500px;
+}
+.show {
+  display: flex !important;
+}
