@@ -163,8 +163,7 @@ function renderBoard() {
       cell.style.cursor = piece ? "grab" : "default";
       cell.style.background = (rank + file) % 2 === 0 ? "#b58863" : "#f0d9b5";
       cell.dataset.sq = sq; // store the index on the cell
-
-      cell.textContent = piece ? unicodePieces[piece.symbol] : "";
+      cell.textContent += piece ? unicodePieces[piece.symbol] : "";
 
       // drag events
       if (piece) {
@@ -295,6 +294,8 @@ function isValidBishopMove(from, to, isWhite) {
 
   // walk every square between from and to
   let current = from + step;
+  console.log(BigInt(current));
+
   while (current !== to) {
     if ((getAllPieces() >> BigInt(current)) & 1n) return false; // something is in the way
     current += step;
@@ -620,6 +621,7 @@ const debug = {
   enPassant: false,
   attacked: false,
   checkmate: false,
+  boardIndex: false,
 };
 const debugBoards = {
   enPassant: 0n,
@@ -633,8 +635,7 @@ function applyDebugLayer() {
     const sq = parseInt(cell.dataset.sq);
     const rank = Math.floor(sq / 8);
     const file = sq % 8;
-    cell.style.backgroundColor =
-      (rank + file) % 2 === 0 ? "#b58863" : "#f0d9b5";
+
     cell.style.outline = "none";
   });
 
@@ -643,9 +644,13 @@ function applyDebugLayer() {
   cells.forEach((cell) => {
     const sq = parseInt(cell.dataset.sq);
     const bit = BigInt(sq);
+    const rank = Math.floor(sq / 8);
+    const file = sq % 8;
+    if (debug.boardIndex) cell.textContent += sq;
 
     if (debug.nonMoved && (boards.notMovedPieces >> bit) & 1n) {
-      cell.style.backgroundColor = "steelblue";
+      cell.style.backgroundColor =
+        (rank + file) % 2 === 0 ? "rgb(59, 96, 127)" : "steelblue";
     }
 
     if (debug.enPassant && (debugBoards.enPassant >> bit) & 1n) {
@@ -653,7 +658,8 @@ function applyDebugLayer() {
     }
 
     if (debug.attacked && (debugBoards.attacked >> bit) & 1n) {
-      cell.style.outline = "2px solid red";
+      cell.textContent = "X";
+      cell.style.color = "red";
     }
   });
 }
@@ -667,18 +673,18 @@ function updateDebugBoards() {
   //   const sq = rank * 8 + enPassantSquare;
   //   debugBoards.enPassant |= 1n << BigInt(sq);
   // }
-
   // attacked squares — every square the current enemy can attack
-  debugBoards.attacked = 0n;
-  for (let sq = 0; sq < 64; sq++) {
-    if (isSquareAttacked(sq, !isWhiteTurn)) {
-      debugBoards.attacked |= 1n << BigInt(sq);
-    }
-  }
+  // debugBoards.attacked = 0n;
+  // for (let sq = 0; sq < 64; sq++) {
+  //   if (isSquareAttacked(sq, !isWhiteTurn)) {
+  //     debugBoards.attacked |= 1n << BigInt(sq);
+  //   }
+  // }
 }
 
 function toggleDebug(key) {
   debug[key] = !debug[key];
+  if (debug.attacked) updateDebugBoards();
   renderBoard();
 }
 
