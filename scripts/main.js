@@ -195,6 +195,7 @@ function renderBoard() {
 
   document.getElementById("board").innerHTML = "";
   document.getElementById("board").appendChild(table);
+  if (debug.attacked) updateDebugBoards();
   applyDebugLayer();
 }
 
@@ -579,7 +580,8 @@ function movePiece(from, to) {
       boards.notMovedPieces &= ~(1n << BigInt(toIndex));
     }
     boards[target.board] &= ~(1n << BigInt(toIndex));
-    console.log("taking:", boards[target.board]);
+    console.log("taking:", target.board);
+    updateScore(target.board);
   }
   const savedBoards = { ...boards };
   boards[piece.board] &= ~(1n << BigInt(fromIndex));
@@ -672,6 +674,11 @@ function applyDebugLayer() {
     }
   });
 }
+let score = 0;
+function updateScore(piece) {
+  if (piece.includes("Pawns")) score += 1;
+  console.log("Score updated:", score);
+}
 
 function updateDebugBoards() {
   // en passant — set the bit for the adjacent square
@@ -683,17 +690,16 @@ function updateDebugBoards() {
   //   debugBoards.enPassant |= 1n << BigInt(sq);
   // }
   // attacked squares — every square the current enemy can attack
-  // debugBoards.attacked = 0n;
-  // for (let sq = 0; sq < 64; sq++) {
-  //   if (isSquareAttacked(sq, !isWhiteTurn)) {
-  //     debugBoards.attacked |= 1n << BigInt(sq);
-  //   }
-  // }
+  debugBoards.attacked = 0n;
+  for (let sq = 0; sq < 64; sq++) {
+    if (isSquareAttacked(sq, !isWhiteTurn)) {
+      debugBoards.attacked |= 1n << BigInt(sq);
+    }
+  }
 }
 
 function toggleDebug(key) {
   debug[key] = !debug[key];
-  if (debug.attacked) updateDebugBoards();
   renderBoard();
 }
 
