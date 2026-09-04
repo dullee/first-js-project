@@ -144,6 +144,77 @@ function getSquare(sq) {
   return null;
 }
 
+function getLegalMoves(fromIndex) {
+  const piece = getSquare(fromIndex);
+  if (!piece) return [];
+  const isWhite = piece.board.startsWith("white");
+  if (isWhite !== isWhiteTurn) return [];
+
+  const moves = [];
+  const validator = moveValidators[piece.symbol];
+  const savedCastling = { ...castling };
+
+  for (let to = 0; to < 64; to++) {
+    if (to === fromIndex) continue;
+
+    let isValid = false;
+    if (
+      (piece.symbol === "K" || piece.symbol === "k") &&
+      Math.abs(to - fromIndex) === 2
+    ) {
+      isValid = isValidCastle(fromIndex, to, isWhite);
+    } else if (validator) {
+      Object.assign(castling, savedCastling);
+      isValid = validator(fromIndex, to, isWhite);
+      Object.assign(castling, savedCastling);
+    }
+    if (!isValid) continue;
+
+    const savedBoards = { ...boards };
+    const target = getSquare(to);
+    if (target) boards[target.board] &= ~(1n << BigInt(to));
+    boards[piece.board] &= ~(1n << BigInt(fromIndex));
+    boards[piece.board] |= 1n << BigInt(to);
+
+    const leavesInCheck = isInCheck(isWhite);
+    Object.assign(boards, savedBoards);
+    if (!leavesInCheck) moves.push(to);
+  }
+
+  Object.assign(castling, savedCastling);
+  return moves;
+}
+
+function clearMoveHints() {
+  document
+    .querySelectorAll("td.origin-hint, td.move-hint, td.capture-hint")
+    .forEach((cell) => {
+      cell.classList.remove("origin-hint", "move-hint", "capture-hint");
+    });
+}
+
+function showMoveHints(fromIndex) {
+  clearMoveHints();
+  const origin = document.querySelector(`td[data-sq="${fromIndex}"]`);
+  if (origin) origin.classList.add("origin-hint");
+
+  for (const to of getLegalMoves(fromIndex)) {
+    const cell = document.querySelector(`td[data-sq="${to}"]`);
+    if (!cell) continue;
+    cell.classList.add(getSquare(to) ? "capture-hint" : "move-hint");
+  }
+}
+
+function setPieceDragImage(e, symbol) {
+  const ghost = document.createElement("div");
+  ghost.className = "drag-ghost";
+  ghost.textContent = unicodePieces[symbol];
+  document.body.appendChild(ghost);
+  e.dataTransfer.setDragImage(ghost, 34, 34);
+  // remove after the browser has captured the drag image
+  requestAnimationFrame(() => ghost.remove());
+}
+
 function renderBoard() {
   const table = document.createElement("table");
   table.style.borderCollapse = "collapse";
@@ -156,10 +227,6 @@ function renderBoard() {
       const piece = getSquare(sq);
       const cell = document.createElement("td");
 
-      cell.style.width = "68px";
-      cell.style.height = "68px";
-      cell.style.textAlign = "center";
-      cell.style.fontSize = "48px";
       cell.style.cursor = piece ? "grab" : "default";
       cell.style.background = (rank + file) % 2 === 0 ? "#b58863" : "#f0d9b5";
       cell.dataset.sq = sq; // store the index on the cell
@@ -170,15 +237,25 @@ function renderBoard() {
         cell.draggable = true;
         cell.addEventListener("dragstart", (e) => {
           e.dataTransfer.setData("from", sq); // store where we dragged from
+          e.dataTransfer.effectAllowed = "move";
+          setPieceDragImage(e, piece.symbol);
+          cell.classList.add("dragging-piece");
+          showMoveHints(sq);
+        });
+        cell.addEventListener("dragend", () => {
+          cell.classList.remove("dragging-piece");
+          clearMoveHints();
         });
       }
 
       cell.addEventListener("dragover", (e) => {
         e.preventDefault(); // required to allow dropping
+        e.dataTransfer.dropEffect = "move";
       });
 
       cell.addEventListener("drop", (e) => {
         e.preventDefault();
+        clearMoveHints();
         const fromIndex = parseInt(e.dataTransfer.getData("from"));
         const toIndex = parseInt(cell.dataset.sq);
         const fromSq = indexToSquare(fromIndex);
