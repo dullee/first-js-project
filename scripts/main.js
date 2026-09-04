@@ -20,6 +20,7 @@ import {
   resetMoveHistory,
   setOnHistoryView,
 } from "./move-history.js";
+import { clearPlanArrows } from "./move-plan.js";
 
 setOnHistoryView(() => {
   if (isViewingHistory()) {
@@ -43,6 +44,7 @@ export function resetBoard() {
   Object.assign(castling, defaultCastling);
   resetClocks(600);
   resetMoveHistory();
+  clearPlanArrows();
 
   renderBoard();
   console.log("reset board");

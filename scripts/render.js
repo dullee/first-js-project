@@ -15,6 +15,7 @@ import {
   applyReviewModeUI,
   isViewingHistory,
 } from "./move-history.js";
+import { initMovePlan } from "./move-plan.js";
 
 export function clearMoveHints() {
   document
@@ -52,11 +53,19 @@ export function renderBoard() {
   const table = document.createElement("table");
   table.style.borderCollapse = "collapse";
   const reviewing = isViewingHistory();
+  // Black at bottom when the human plays black; bitboard indices stay the same.
+  const flipped = !game.humanIsWhite;
+  const ranks = flipped
+    ? [0, 1, 2, 3, 4, 5, 6, 7]
+    : [7, 6, 5, 4, 3, 2, 1, 0];
+  const files = flipped
+    ? [7, 6, 5, 4, 3, 2, 1, 0]
+    : [0, 1, 2, 3, 4, 5, 6, 7];
 
-  for (let rank = 7; rank >= 0; rank--) {
+  for (const rank of ranks) {
     const row = document.createElement("tr");
 
-    for (let file = 0; file < 8; file++) {
+    for (const file of files) {
       const sq = rank * 8 + file;
       const piece = getSquare(sq);
       const cell = document.createElement("td");
@@ -67,14 +76,16 @@ export function renderBoard() {
       cell.dataset.sq = sq; // store the index on the cell
       cell.classList.add(isDark ? "sq-dark" : "sq-light");
 
-      // Rank labels on the a-file; file labels on the 1st rank
-      if (file === 0) {
+      // Rank labels on the visual left edge; file labels on the visual bottom edge
+      const onLeftEdge = flipped ? file === 7 : file === 0;
+      const onBottomEdge = flipped ? rank === 7 : rank === 0;
+      if (onLeftEdge) {
         const rankLabel = document.createElement("span");
         rankLabel.className = "coord coord-rank";
         rankLabel.textContent = String(rank + 1);
         cell.appendChild(rankLabel);
       }
-      if (rank === 0) {
+      if (onBottomEdge) {
         const fileLabel = document.createElement("span");
         fileLabel.className = "coord coord-file";
         fileLabel.textContent = String.fromCharCode(97 + file);
@@ -152,15 +163,20 @@ export function renderBoard() {
   boardEl.innerHTML = "";
   boardEl.appendChild(table);
   boardEl.classList.toggle("is-reviewing", reviewing);
+  boardEl.classList.toggle("is-flipped", flipped);
 
   const wrap = document.getElementById("boardWrap");
-  if (wrap) wrap.classList.toggle("is-reviewing", reviewing);
+  if (wrap) {
+    wrap.classList.toggle("is-reviewing", reviewing);
+    wrap.classList.toggle("is-flipped", flipped);
+  }
 
   applyLastMoveHighlight();
   applyReviewModeUI();
   applyCheckHighlight();
   if (debug.attacked) updateDebugBoards();
   applyDebugLayer();
+  initMovePlan();
 }
 
 export function updateBoard() {

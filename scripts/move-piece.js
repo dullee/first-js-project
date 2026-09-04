@@ -30,6 +30,7 @@ import {
   showPromotionUI,
 } from "./promotion.js";
 import { isViewingHistory, recordMove } from "./move-history.js";
+import { clearPlanArrows } from "./move-plan.js";
 
 function updateScore(piece) {
   if (piece.includes("Pawns")) game.score += 1;
@@ -45,6 +46,7 @@ function finishSuccessfulMove(fromIndex, toIndex, symbol, isWhite, didCapture) {
   turn.isWhite = !turn.isWhite;
   playMoveFx(didCapture);
   startTimer();
+  clearPlanArrows();
   recordMove(fromIndex, toIndex, symbol, isWhite);
   if (isCheckmate(!isWhite)) {
     endByCheckmate(isWhite);
