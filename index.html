@@ -15,7 +15,17 @@
   <body>
     <div id="mainDiv" class="mainContainer">
       <div id="timerContainer"><h2 id="timerText">Time: 00:00</h2></div>
-      <div id="board"></div>
+      <div id="boardWrap" class="board-wrap">
+        <div
+          id="checkBanner"
+          class="check-banner"
+          hidden
+          aria-live="assertive"
+        >
+          Check!
+        </div>
+        <div id="board"></div>
+      </div>
       <div id="debugMenuContainer">
         <ul>
           <button onclick="toggleDebug('nonMoved')">Non Moved Pieces</button>
@@ -26,8 +36,32 @@
       </div>
     </div>
     <div class="controls">
+      <label class="control-field">
+        Mode
+        <select id="gameMode" onchange="onGameSettingsChange()">
+          <option value="human">Human vs Human</option>
+          <option value="easy">Easy Bot</option>
+          <option value="medium">Medium Bot</option>
+          <option value="expert">Expert Bot</option>
+        </select>
+      </label>
+      <label class="control-field">
+        Play as
+        <select id="playAs" onchange="onGameSettingsChange()">
+          <option value="white">White</option>
+          <option value="black">Black</option>
+        </select>
+      </label>
       <button onclick="resetBoard()">Reset Game</button>
       <button onclick="displayDebugMenu()">Debug</button>
+    </div>
+    <div id="gameOverOverlay" class="game-over-overlay" hidden>
+      <div class="game-over-card" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+        <p id="gameOverEyebrow" class="game-over-eyebrow"></p>
+        <h2 id="gameOverTitle" class="game-over-title"></h2>
+        <p id="gameOverSubtitle" class="game-over-subtitle"></p>
+        <button type="button" class="game-over-btn" onclick="resetBoard()">Play Again</button>
+      </div>
     </div>
   </body>
 </html>

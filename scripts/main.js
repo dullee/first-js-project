@@ -109,7 +109,46 @@ var castling = {
   blackKingSide: true,
   blackQueenSide: true,
 };
+const defaultCastling = {
+  whiteKingSide: true,
+  whiteQueenSide: true,
+  blackKingSide: true,
+  blackQueenSide: true,
+};
 let isWhiteTurn = true;
+
+// bot / game mode
+let gameMode = "human"; // human | easy | medium | expert
+let humanIsWhite = true;
+let botThinking = false;
+let botTimerId = null;
+let gameOver = false;
+let checkAudioCtx = null;
+let searchNodes = 0;
+const SEARCH_NODE_LIMIT = 12000;
+
+const PIECE_VALUES = {
+  P: 100,
+  N: 320,
+  B: 320,
+  R: 500,
+  Q: 900,
+  K: 20000,
+  p: 100,
+  n: 320,
+  b: 320,
+  r: 500,
+  q: 900,
+  k: 20000,
+};
+
+// small center / development bonuses (a1=0 … h8=63), white perspective
+const PST = [
+  0, 0, 0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 10, 15, 20, 20, 15, 10, 5,
+  5, 10, 20, 25, 25, 20, 10, 5, 5, 10, 20, 25, 25, 20, 10, 5, 5, 10, 15, 20, 20,
+  15, 10, 5, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+
 
 function getWhitePieces() {
   return (
@@ -230,7 +269,7 @@ function renderBoard() {
       const piece = getSquare(sq);
       const cell = document.createElement("td");
 
-      cell.style.cursor = piece ? "grab" : "default";
+      cell.style.cursor = "default";
       cell.style.background = (rank + file) % 2 === 0 ? "#b58863" : "#f0d9b5";
       cell.dataset.sq = sq; // store the index on the cell
       if (piece) {
@@ -240,9 +279,16 @@ function renderBoard() {
         cell.textContent = unicodePieces[piece.symbol];
       }
 
-      // drag events
-      if (piece) {
+      // drag events — only human-side pieces in bot modes
+      const canDrag =
+        piece &&
+        !gameOver &&
+        !botThinking &&
+        (gameMode === "human" ||
+          piece.board.startsWith("white") === humanIsWhite);
+      if (canDrag) {
         cell.draggable = true;
+        cell.style.cursor = "grab";
         cell.addEventListener("dragstart", (e) => {
           e.dataTransfer.setData("from", sq); // store where we dragged from
           e.dataTransfer.effectAllowed = "move";
@@ -254,6 +300,8 @@ function renderBoard() {
           cell.classList.remove("dragging-piece");
           clearMoveHints();
         });
+      } else if (piece) {
+        cell.style.cursor = "default";
       }
 
       cell.addEventListener("dragover", (e) => {
@@ -263,6 +311,7 @@ function renderBoard() {
 
       cell.addEventListener("drop", (e) => {
         e.preventDefault();
+        if (gameOver || botThinking) return;
         clearMoveHints();
         const fromIndex = parseInt(e.dataTransfer.getData("from"));
         const toIndex = parseInt(cell.dataset.sq);
@@ -280,19 +329,179 @@ function renderBoard() {
 
   document.getElementById("board").innerHTML = "";
   document.getElementById("board").appendChild(table);
+  applyCheckHighlight();
   if (debug.attacked) updateDebugBoards();
   applyDebugLayer();
 }
 
+function getCheckAudioCtx() {
+  if (!checkAudioCtx) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    checkAudioCtx = new AudioCtx();
+  }
+  return checkAudioCtx;
+}
+
+function playCheckSound() {
+  const ctx = getCheckAudioCtx();
+  if (!ctx) return;
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+
+  const now = ctx.currentTime;
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.0001, now);
+  master.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
+  master.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+  master.connect(ctx.destination);
+
+  const beep = (freq, start, dur) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(freq, now + start);
+    gain.gain.setValueAtTime(0.0001, now + start);
+    gain.gain.exponentialRampToValueAtTime(1, now + start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(now + start);
+    osc.stop(now + start + dur + 0.02);
+  };
+
+  beep(880, 0, 0.12);
+  beep(1175, 0.14, 0.16);
+}
+
+function hideCheckBanner() {
+  const banner = document.getElementById("checkBanner");
+  if (!banner) return;
+  banner.classList.remove("is-visible");
+  banner.hidden = true;
+}
+
+function showCheckBanner(isWhiteInCheck) {
+  const banner = document.getElementById("checkBanner");
+  if (!banner) return;
+  banner.textContent = isWhiteInCheck ? "White in check!" : "Black in check!";
+  banner.hidden = false;
+  requestAnimationFrame(() => banner.classList.add("is-visible"));
+}
+
+function applyCheckHighlight() {
+  const boardEl = document.getElementById("board");
+  if (!boardEl || gameOver) {
+    hideCheckBanner();
+    return;
+  }
+
+  const whiteInCheck = isInCheck(true);
+  const blackInCheck = isInCheck(false);
+  if (!whiteInCheck && !blackInCheck) {
+    hideCheckBanner();
+    return;
+  }
+
+  const kingBb = whiteInCheck ? boards.whiteKing : boards.blackKing;
+  if (!kingBb) return;
+  const kingSq = bitScanForward(kingBb);
+  const cell = boardEl.querySelector(`td[data-sq="${kingSq}"]`);
+  if (cell) cell.classList.add("in-check");
+}
+
+function announceCheck(isWhiteInCheck) {
+  showCheckBanner(isWhiteInCheck);
+  playCheckSound();
+
+  const boardEl = document.getElementById("board");
+  if (boardEl) {
+    boardEl.classList.remove("board-check-flash");
+    // restart animation
+    void boardEl.offsetWidth;
+    boardEl.classList.add("board-check-flash");
+  }
+}
+
+function clearCheckAlert() {
+  hideCheckBanner();
+  const boardEl = document.getElementById("board");
+  if (boardEl) boardEl.classList.remove("board-check-flash");
+}
+
+function hideGameOver() {
+  const overlay = document.getElementById("gameOverOverlay");
+  if (!overlay) return;
+  overlay.classList.remove("is-visible");
+  overlay.hidden = true;
+  const card = overlay.querySelector(".game-over-card");
+  if (card) card.classList.remove("is-draw");
+}
+
+function showGameOver({ title, subtitle, eyebrow = "", isDraw = false }) {
+  gameOver = true;
+  clearInterval(timerId);
+  clearTimeout(botTimerId);
+  botThinking = false;
+  clearCheckAlert();
+
+  const overlay = document.getElementById("gameOverOverlay");
+  if (!overlay) return;
+  const card = overlay.querySelector(".game-over-card");
+  document.getElementById("gameOverEyebrow").textContent = eyebrow;
+  document.getElementById("gameOverTitle").textContent = title;
+  document.getElementById("gameOverSubtitle").textContent = subtitle;
+  card.classList.toggle("is-draw", isDraw);
+
+  overlay.hidden = false;
+  // next frame so the CSS transition runs
+  requestAnimationFrame(() => overlay.classList.add("is-visible"));
+  renderBoard();
+}
+
+function endByCheckmate(winnerIsWhite) {
+  const winner = winnerIsWhite ? "White" : "Black";
+  showGameOver({
+    eyebrow: "Checkmate",
+    title: `${winner} wins`,
+    subtitle: `${winnerIsWhite ? "Black" : "White"} has no legal moves.`,
+  });
+}
+
+function endByStalemate() {
+  showGameOver({
+    eyebrow: "Draw",
+    title: "Stalemate",
+    subtitle: "No legal moves, and the king is not in check.",
+    isDraw: true,
+  });
+}
+
+function endByTimeout(loserIsWhite) {
+  const winner = loserIsWhite ? "Black" : "White";
+  showGameOver({
+    eyebrow: "Time",
+    title: `${winner} wins`,
+    subtitle: `${loserIsWhite ? "White" : "Black"} ran out of time.`,
+  });
+}
+
 function resetBoard() {
+  clearTimeout(botTimerId);
+  botThinking = false;
+  gameOver = false;
+  clearCheckAlert();
+  hideGameOver();
   isWhiteTurn = true;
   Object.assign(boards, defaultBoards);
-  if (boards.notMovedPieces == defaultBoards.not) console.log("same");
-
-  renderBoard();
+  Object.assign(castling, defaultCastling);
+  score = 0;
   whiteTimeLeft = 600;
   blackTimeLeft = 600;
+  updateTimerText(whiteTimeLeft);
+  startTimer();
+  renderBoard();
   console.log("reset board");
+  maybeScheduleBotMove();
 }
 
 function updateBoard() {
@@ -366,8 +575,8 @@ function isValidBishopMove(from, to, isWhite) {
   const fileDiff = Math.abs(fromFile - toFile);
   const rankDiff = Math.abs(fromRank - toRank);
 
-  // must move equal ranks and files to be diagonal
-  if (fileDiff !== rankDiff) return false;
+  // must move equal ranks and files to be diagonal (and actually move)
+  if (fileDiff === 0 || fileDiff !== rankDiff) return false;
 
   // figure out which direction we are stepping
   const fileStep = toFile > fromFile ? 1 : -1;
@@ -680,6 +889,7 @@ function hasLegalMoves(isWhite) {
 
     // try every possible destination square
     for (let to = 0; to < 64; to++) {
+      if (to === sq) continue;
       if (validator && validator(sq, to, isWhite)) {
         // simulate the move
         const savedBoards = { ...boards };
@@ -725,12 +935,14 @@ function startTimer() {
       updateTimerText(blackTimeLeft);
     }
 
+    if (gameOver) {
+      clearInterval(timerId);
+      return;
+    }
     if (whiteTimeLeft === 0 && isWhiteTurn) {
-      clearInterval(timerId);
-      console.log("White Ran out of Time");
+      endByTimeout(true);
     } else if (blackTimeLeft === 0 && !isWhiteTurn) {
-      clearInterval(timerId);
-      console.log("Black Ran out of Time");
+      endByTimeout(false);
     }
   }, 1000);
 }
@@ -748,6 +960,7 @@ function updateTimerText(timeLeft) {
 }
 
 function movePiece(from, to) {
+  if (gameOver) return;
   const fromIndex = squareToIndex(from);
   const toIndex = squareToIndex(to);
   const piece = getSquare(fromIndex);
@@ -765,7 +978,22 @@ function movePiece(from, to) {
       return console.log("invalid castle");
     performCastle(fromIndex, toIndex, isWhite);
     isWhiteTurn = !isWhiteTurn;
+    startTimer();
+    if (isCheckmate(!isWhite)) {
+      endByCheckmate(isWhite);
+      return;
+    }
+    if (isStalemate(!isWhite)) {
+      endByStalemate();
+      return;
+    }
+    if (isInCheck(!isWhite)) {
+      announceCheck(!isWhite);
+    } else {
+      clearCheckAlert();
+    }
     updateBoard();
+    maybeScheduleBotMove();
     return;
   }
 
@@ -810,23 +1038,24 @@ function movePiece(from, to) {
   isWhiteTurn = !isWhiteTurn;
   startTimer();
   if (isCheckmate(!isWhite)) {
-    renderBoard();
-    alert(isWhite ? "White wins! Checkmate!" : "Black wins! Checkmate!");
+    endByCheckmate(isWhite);
     return;
   }
 
   if (isStalemate(!isWhite)) {
-    renderBoard();
-    alert("Stalemate! Draw!");
+    endByStalemate();
     return;
   }
 
   if (isInCheck(!isWhite)) {
-    console.log(!isWhite ? "White is in check" : "Black is in check");
+    announceCheck(!isWhite);
+  } else {
+    clearCheckAlert();
   }
 
   updateBoard();
   console.log("moved piece");
+  maybeScheduleBotMove();
 }
 
 function displayDebugMenu() {
@@ -912,5 +1141,265 @@ function toggleDebug(key) {
   renderBoard();
 }
 
+function botIsWhite() {
+  return !humanIsWhite;
+}
+
+function isBotTurn() {
+  return gameMode !== "human" && isWhiteTurn === botIsWhite();
+}
+
+function botDelayMs() {
+  if (gameMode === "easy") return 500;
+  if (gameMode === "medium") return 600;
+  return 700;
+}
+
+function snapshotGame() {
+  return {
+    boards: { ...boards },
+    castling: { ...castling },
+    isWhiteTurn,
+  };
+}
+
+function restoreGame(snap) {
+  Object.assign(boards, snap.boards);
+  Object.assign(castling, snap.castling);
+  isWhiteTurn = snap.isWhiteTurn;
+}
+
+function generateAllLegalMoves(isWhite) {
+  const savedTurn = isWhiteTurn;
+  isWhiteTurn = isWhite;
+  const moves = [];
+  let bb = isWhite ? getWhitePieces() : getBlackPieces();
+  while (bb) {
+    const from = bitScanForward(bb);
+    for (const to of getLegalMoves(from)) {
+      moves.push({ from, to });
+    }
+    bb &= bb - 1n;
+  }
+  isWhiteTurn = savedTurn;
+  return moves;
+}
+
+function applyMoveForSearch(from, to) {
+  const piece = getSquare(from);
+  if (!piece) return;
+  const isWhite = piece.board.startsWith("white");
+
+  if (
+    (piece.symbol === "K" || piece.symbol === "k") &&
+    Math.abs(to - from) === 2
+  ) {
+    performCastle(from, to, isWhite);
+    isWhiteTurn = !isWhiteTurn;
+    return;
+  }
+
+  const target = getSquare(to);
+  if (target) boards[target.board] &= ~(1n << BigInt(to));
+  boards[piece.board] &= ~(1n << BigInt(from));
+  boards[piece.board] |= 1n << BigInt(to);
+
+  if (piece.symbol === "K") {
+    castling.whiteKingSide = false;
+    castling.whiteQueenSide = false;
+  } else if (piece.symbol === "k") {
+    castling.blackKingSide = false;
+    castling.blackQueenSide = false;
+  } else if (piece.symbol === "R") {
+    if (from === 0) castling.whiteQueenSide = false;
+    if (from === 7) castling.whiteKingSide = false;
+  } else if (piece.symbol === "r") {
+    if (from === 56) castling.blackQueenSide = false;
+    if (from === 63) castling.blackKingSide = false;
+  }
+
+  isWhiteTurn = !isWhiteTurn;
+}
+
+function scoreBitboard(bb, value, isWhitePiece) {
+  let total = 0;
+  let bits = bb;
+  while (bits) {
+    const sq = bitScanForward(bits);
+    const pstIndex = isWhitePiece ? sq : 63 - sq;
+    total += value + PST[pstIndex];
+    bits &= bits - 1n;
+  }
+  return total;
+}
+
+function evaluatePosition() {
+  // positive = good for White
+  let score =
+    scoreBitboard(boards.whitePawns, PIECE_VALUES.P, true) -
+    scoreBitboard(boards.blackPawns, PIECE_VALUES.p, false) +
+    scoreBitboard(boards.whiteKnights, PIECE_VALUES.N, true) -
+    scoreBitboard(boards.blackKnights, PIECE_VALUES.n, false) +
+    scoreBitboard(boards.whiteBishops, PIECE_VALUES.B, true) -
+    scoreBitboard(boards.blackBishops, PIECE_VALUES.b, false) +
+    scoreBitboard(boards.whiteRooks, PIECE_VALUES.R, true) -
+    scoreBitboard(boards.blackRooks, PIECE_VALUES.r, false) +
+    scoreBitboard(boards.whiteQueens, PIECE_VALUES.Q, true) -
+    scoreBitboard(boards.blackQueens, PIECE_VALUES.q, false);
+
+  if (!boards.whiteKing) score -= PIECE_VALUES.K;
+  if (!boards.blackKing) score += PIECE_VALUES.K;
+  return score;
+}
+
+function orderMoves(moves) {
+  return moves.slice().sort((a, b) => {
+    const capA = getSquare(a.to) ? PIECE_VALUES[getSquare(a.to).symbol] || 0 : 0;
+    const capB = getSquare(b.to) ? PIECE_VALUES[getSquare(b.to).symbol] || 0 : 0;
+    return capB - capA;
+  });
+}
+
+function negamax(depth, alpha, beta) {
+  searchNodes++;
+  if (searchNodes > SEARCH_NODE_LIMIT || depth === 0) {
+    const evalScore = evaluatePosition();
+    return isWhiteTurn ? evalScore : -evalScore;
+  }
+
+  const moves = orderMoves(generateAllLegalMoves(isWhiteTurn));
+  if (moves.length === 0) {
+    if (isInCheck(isWhiteTurn)) return -100000 + searchNodes;
+    return 0;
+  }
+
+  let best = -Infinity;
+  for (const move of moves) {
+    const snap = snapshotGame();
+    applyMoveForSearch(move.from, move.to);
+    const score = -negamax(depth - 1, -beta, -alpha);
+    restoreGame(snap);
+    if (score > best) best = score;
+    if (best > alpha) alpha = best;
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+
+function pickEasyMove(botWhite) {
+  const moves = generateAllLegalMoves(botWhite);
+  if (!moves.length) return null;
+
+  const interesting = moves.filter((m) => {
+    if (getSquare(m.to)) return true;
+    const snap = snapshotGame();
+    applyMoveForSearch(m.from, m.to);
+    const givesCheck = isInCheck(!botWhite);
+    restoreGame(snap);
+    return givesCheck;
+  });
+
+  if (interesting.length && Math.random() < 0.15) {
+    return interesting[Math.floor(Math.random() * interesting.length)];
+  }
+  return moves[Math.floor(Math.random() * moves.length)];
+}
+
+function pickMediumMove(botWhite) {
+  const moves = generateAllLegalMoves(botWhite);
+  if (!moves.length) return null;
+
+  let bestScore = -Infinity;
+  let bestMoves = [];
+  for (const move of moves) {
+    const snap = snapshotGame();
+    applyMoveForSearch(move.from, move.to);
+    let score = evaluatePosition();
+    if (!botWhite) score = -score;
+    score += (Math.random() - 0.5) * 8; // tiny jitter
+    restoreGame(snap);
+    if (score > bestScore + 5) {
+      bestScore = score;
+      bestMoves = [move];
+    } else if (Math.abs(score - bestScore) <= 5) {
+      bestMoves.push(move);
+      if (score > bestScore) bestScore = score;
+    }
+  }
+  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+}
+
+function pickExpertMove(botWhite) {
+  const moves = orderMoves(generateAllLegalMoves(botWhite));
+  if (!moves.length) return null;
+
+  searchNodes = 0;
+  let bestScore = -Infinity;
+  let bestMove = moves[0];
+  for (const move of moves) {
+    const snap = snapshotGame();
+    applyMoveForSearch(move.from, move.to);
+    // root move + depth 2 = 3 ply look-ahead
+    const score = -negamax(2, -Infinity, Infinity);
+    restoreGame(snap);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
+  return bestMove;
+}
+
+function pickBotMove() {
+  const botWhite = botIsWhite();
+  if (gameMode === "easy") return pickEasyMove(botWhite);
+  if (gameMode === "medium") return pickMediumMove(botWhite);
+  return pickExpertMove(botWhite);
+}
+
+function playBotMove() {
+  if (gameOver) return;
+  if (gameMode === "human") return;
+  if (!isBotTurn()) return;
+  if (isCheckmate(isWhiteTurn) || isStalemate(isWhiteTurn)) return;
+
+  const move = pickBotMove();
+  if (!move) return;
+
+  botThinking = true;
+  renderBoard(); // lock human drag while animating
+  const fromSq = indexToSquare(move.from);
+  const toSq = indexToSquare(move.to);
+  movePiece(fromSq, toSq);
+  botThinking = false;
+  renderBoard();
+}
+
+function maybeScheduleBotMove() {
+  clearTimeout(botTimerId);
+  if (gameOver) return;
+  if (gameMode === "human") return;
+  if (!isBotTurn()) return;
+  if (isCheckmate(isWhiteTurn) || isStalemate(isWhiteTurn)) return;
+
+  botThinking = true;
+  renderBoard();
+  botTimerId = setTimeout(() => {
+    botThinking = false;
+    playBotMove();
+  }, botDelayMs());
+}
+
+function onGameSettingsChange() {
+  const modeEl = document.getElementById("gameMode");
+  const playAsEl = document.getElementById("playAs");
+  gameMode = modeEl.value;
+  humanIsWhite = playAsEl.value === "white";
+  playAsEl.disabled = gameMode === "human";
+  resetBoard();
+}
+
 renderBoard();
 startTimer();
+const playAsEl = document.getElementById("playAs");
+if (playAsEl) playAsEl.disabled = gameMode === "human";
