@@ -166,8 +166,8 @@ export function snapshotBoard() {
   };
 }
 
-export function restoreBoard(snap) {
+export function restoreBoard(snap, { restoreTurn = true } = {}) {
   Object.assign(boards, snap.boards);
   Object.assign(castling, snap.castling);
-  turn.isWhite = snap.isWhiteTurn;
+  if (restoreTurn) turn.isWhite = snap.isWhiteTurn;
 }

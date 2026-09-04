@@ -24,8 +24,42 @@
         >
           Check!
         </div>
+        <div
+          id="reviewBanner"
+          class="review-banner"
+          hidden
+          aria-live="polite"
+        >
+          <span class="review-banner-label">Reviewing</span>
+          <span id="reviewBannerMove" class="review-banner-move"></span>
+          <button
+            type="button"
+            class="review-banner-live"
+            onclick="returnToLiveGame()"
+          >
+            Back to live
+          </button>
+        </div>
         <div id="board"></div>
       </div>
+      <aside id="moveHistory" class="move-history" aria-label="Move history">
+        <div class="move-history-header">
+          <h2 class="move-history-title">Moves</h2>
+          <button
+            type="button"
+            id="moveHistoryLive"
+            class="move-history-live is-active"
+            onclick="returnToLiveGame()"
+            disabled
+          >
+            Live
+          </button>
+        </div>
+        <p id="moveHistoryHint" class="move-history-hint">
+          Click a move to see the board and from/to squares
+        </p>
+        <ol id="moveHistoryList" class="move-history-list"></ol>
+      </aside>
       <div id="debugMenuContainer">
         <ul>
           <button onclick="toggleDebug('nonMoved')">Non Moved Pieces</button>

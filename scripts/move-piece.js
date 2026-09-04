@@ -29,6 +29,7 @@ import {
   promotePawnOnSquare,
   showPromotionUI,
 } from "./promotion.js";
+import { isViewingHistory, recordMove } from "./move-history.js";
 
 function updateScore(piece) {
   if (piece.includes("Pawns")) game.score += 1;
@@ -40,10 +41,11 @@ function playMoveFx(didCapture) {
   else playMoveSound();
 }
 
-function finishSuccessfulMove(isWhite, didCapture) {
+function finishSuccessfulMove(fromIndex, toIndex, symbol, isWhite, didCapture) {
   turn.isWhite = !turn.isWhite;
   playMoveFx(didCapture);
   startTimer();
+  recordMove(fromIndex, toIndex, symbol, isWhite);
   if (isCheckmate(!isWhite)) {
     endByCheckmate(isWhite);
     return;
@@ -62,11 +64,18 @@ function finishSuccessfulMove(isWhite, didCapture) {
   maybeScheduleBotMove();
 }
 
-function beginPromotion(toIndex, isWhite, didCapture) {
+function beginPromotion(fromIndex, toIndex, symbol, isWhite, didCapture) {
   const autoQueen = game.botThinking;
   if (autoQueen) {
     promotePawnOnSquare(toIndex, isWhite, "queen");
-    finishSuccessfulMove(isWhite, didCapture);
+    const promoted = getSquare(toIndex);
+    finishSuccessfulMove(
+      fromIndex,
+      toIndex,
+      promoted?.symbol ?? symbol,
+      isWhite,
+      didCapture,
+    );
     return;
   }
 
@@ -77,13 +86,21 @@ function beginPromotion(toIndex, isWhite, didCapture) {
     if (!game.pendingPromotion) return;
     promotePawnOnSquare(toIndex, isWhite, choice);
     game.pendingPromotion = null;
-    finishSuccessfulMove(isWhite, didCapture);
+    const promoted = getSquare(toIndex);
+    finishSuccessfulMove(
+      fromIndex,
+      toIndex,
+      promoted?.symbol ?? symbol,
+      isWhite,
+      didCapture,
+    );
   });
 }
 
 export function movePiece(from, to) {
   if (game.gameOver) return;
   if (game.pendingPromotion) return;
+  if (isViewingHistory()) return;
   const fromIndex = squareToIndex(from);
   const toIndex = squareToIndex(to);
   const piece = getSquare(fromIndex);
@@ -100,7 +117,7 @@ export function movePiece(from, to) {
     if (!isValidCastle(fromIndex, toIndex, isWhite))
       return console.log("invalid castle");
     performCastle(fromIndex, toIndex, isWhite);
-    finishSuccessfulMove(isWhite, false);
+    finishSuccessfulMove(fromIndex, toIndex, piece.symbol, isWhite, false);
     return;
   }
 
@@ -146,11 +163,11 @@ export function movePiece(from, to) {
   }
 
   if (isPawnPromotionMove(piece, toIndex)) {
-    beginPromotion(toIndex, isWhite, didCapture);
+    beginPromotion(fromIndex, toIndex, piece.symbol, isWhite, didCapture);
     return;
   }
 
-  finishSuccessfulMove(isWhite, didCapture);
+  finishSuccessfulMove(fromIndex, toIndex, piece.symbol, isWhite, didCapture);
 }
 
 export { clearPendingPromotion };

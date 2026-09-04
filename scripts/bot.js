@@ -26,6 +26,7 @@ import {
   isPawnPromotionMove,
   promotePawnOnSquare,
 } from "./promotion.js";
+import { isViewingHistory } from "./move-history.js";
 
 const SEARCH_NODE_LIMIT = 12000;
 let searchNodes = 0;
@@ -262,6 +263,7 @@ export function playBotMove() {
   if (game.gameOver) return;
   if (game.mode === "human") return;
   if (!isBotTurn()) return;
+  if (isViewingHistory()) return;
   if (isCheckmate(turn.isWhite) || isStalemate(turn.isWhite)) return;
 
   const move = pickBotMove();
@@ -280,6 +282,7 @@ export function maybeScheduleBotMove() {
   clearTimeout(game.botTimerId);
   if (game.gameOver) return;
   if (game.mode === "human") return;
+  if (isViewingHistory()) return;
   if (!isBotTurn()) return;
   if (isCheckmate(turn.isWhite) || isStalemate(turn.isWhite)) return;
 

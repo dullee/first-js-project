@@ -10,6 +10,11 @@ import { getLegalMoves } from "./legal-moves.js";
 import { applyCheckHighlight } from "./check-ui.js";
 import { applyDebugLayer, debug, updateDebugBoards } from "./debug.js";
 import { movePiece } from "./move-piece.js";
+import {
+  applyLastMoveHighlight,
+  applyReviewModeUI,
+  isViewingHistory,
+} from "./move-history.js";
 
 export function clearMoveHints() {
   document
@@ -46,6 +51,7 @@ export function setPieceDragImage(e, symbol) {
 export function renderBoard() {
   const table = document.createElement("table");
   table.style.borderCollapse = "collapse";
+  const reviewing = isViewingHistory();
 
   for (let rank = 7; rank >= 0; rank--) {
     const row = document.createElement("tr");
@@ -54,15 +60,35 @@ export function renderBoard() {
       const sq = rank * 8 + file;
       const piece = getSquare(sq);
       const cell = document.createElement("td");
+      const isDark = (rank + file) % 2 === 0;
 
       cell.style.cursor = "default";
-      cell.style.background = (rank + file) % 2 === 0 ? "#b58863" : "#f0d9b5";
+      cell.style.background = isDark ? "#b58863" : "#f0d9b5";
       cell.dataset.sq = sq; // store the index on the cell
+      cell.classList.add(isDark ? "sq-dark" : "sq-light");
+
+      // Rank labels on the a-file; file labels on the 1st rank
+      if (file === 0) {
+        const rankLabel = document.createElement("span");
+        rankLabel.className = "coord coord-rank";
+        rankLabel.textContent = String(rank + 1);
+        cell.appendChild(rankLabel);
+      }
+      if (rank === 0) {
+        const fileLabel = document.createElement("span");
+        fileLabel.className = "coord coord-file";
+        fileLabel.textContent = String.fromCharCode(97 + file);
+        cell.appendChild(fileLabel);
+      }
+
       if (piece) {
         cell.classList.add(
           piece.board.startsWith("white") ? "piece-white" : "piece-black",
         );
-        cell.textContent = unicodePieces[piece.symbol];
+        const glyph = document.createElement("span");
+        glyph.className = "piece-glyph";
+        glyph.textContent = unicodePieces[piece.symbol];
+        cell.appendChild(glyph);
       }
 
       // drag events — only human-side pieces in bot modes
@@ -71,6 +97,7 @@ export function renderBoard() {
         !game.gameOver &&
         !game.pendingPromotion &&
         !game.botThinking &&
+        !reviewing &&
         (game.mode === "human" ||
           piece.board.startsWith("white") === game.humanIsWhite);
       if (canDrag) {
@@ -98,7 +125,14 @@ export function renderBoard() {
 
       cell.addEventListener("drop", (e) => {
         e.preventDefault();
-        if (game.gameOver || game.botThinking || game.pendingPromotion) return;
+        if (
+          game.gameOver ||
+          game.botThinking ||
+          game.pendingPromotion ||
+          isViewingHistory()
+        ) {
+          return;
+        }
         clearMoveHints();
         const fromIndex = parseInt(e.dataTransfer.getData("from"));
         const toIndex = parseInt(cell.dataset.sq);
@@ -114,8 +148,16 @@ export function renderBoard() {
     table.appendChild(row);
   }
 
-  document.getElementById("board").innerHTML = "";
-  document.getElementById("board").appendChild(table);
+  const boardEl = document.getElementById("board");
+  boardEl.innerHTML = "";
+  boardEl.appendChild(table);
+  boardEl.classList.toggle("is-reviewing", reviewing);
+
+  const wrap = document.getElementById("boardWrap");
+  if (wrap) wrap.classList.toggle("is-reviewing", reviewing);
+
+  applyLastMoveHighlight();
+  applyReviewModeUI();
   applyCheckHighlight();
   if (debug.attacked) updateDebugBoards();
   applyDebugLayer();

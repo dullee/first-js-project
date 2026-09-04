@@ -15,6 +15,20 @@ import { resetClocks } from "./timer.js";
 import { displayDebugMenu, toggleDebug } from "./debug.js";
 import { maybeScheduleBotMove } from "./bot.js";
 import { clearPendingPromotion } from "./promotion.js";
+import {
+  isViewingHistory,
+  resetMoveHistory,
+  setOnHistoryView,
+} from "./move-history.js";
+
+setOnHistoryView(() => {
+  if (isViewingHistory()) {
+    clearTimeout(game.botTimerId);
+    game.botThinking = false;
+  }
+  renderBoard();
+  if (!isViewingHistory()) maybeScheduleBotMove();
+});
 
 export function resetBoard() {
   clearTimeout(game.botTimerId);
@@ -28,6 +42,7 @@ export function resetBoard() {
   Object.assign(boards, defaultBoards);
   Object.assign(castling, defaultCastling);
   resetClocks(600);
+  resetMoveHistory();
 
   renderBoard();
   console.log("reset board");
@@ -49,6 +64,7 @@ window.onGameSettingsChange = onGameSettingsChange;
 window.displayDebugMenu = displayDebugMenu;
 window.toggleDebug = toggleDebug;
 
+resetMoveHistory();
 renderBoard();
 
 const playAsEl = document.getElementById("playAs");

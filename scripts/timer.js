@@ -8,6 +8,8 @@ let whiteTimeLeft = 600;
 let blackTimeLeft = 600;
 let timerId = null;
 let clockStarted = false;
+/** Which side’s clock is ticking — set only on real moves, never by history review. */
+let activeIsWhite = true;
 
 const timerText = document.getElementById("timerText");
 const timerCon = document.getElementById("timerContainer");
@@ -21,6 +23,7 @@ export function stopTimer() {
 export function resetClocks(seconds = 600) {
   stopTimer();
   clockStarted = false;
+  activeIsWhite = true;
   whiteTimeLeft = seconds;
   blackTimeLeft = seconds;
   updateTimerText(whiteTimeLeft);
@@ -33,9 +36,12 @@ export function startTimer() {
     clockStarted = true;
   }
 
+  // Capture the live side to move; history viewing must not change this.
+  activeIsWhite = turn.isWhite;
+
   clearInterval(timerId);
   timerId = setInterval(() => {
-    if (turn.isWhite) {
+    if (activeIsWhite) {
       whiteTimeLeft--;
       updateTimerText(whiteTimeLeft);
     } else {
@@ -47,9 +53,9 @@ export function startTimer() {
       stopTimer();
       return;
     }
-    if (whiteTimeLeft === 0 && turn.isWhite) {
+    if (whiteTimeLeft === 0 && activeIsWhite) {
       endByTimeout(true);
-    } else if (blackTimeLeft === 0 && !turn.isWhite) {
+    } else if (blackTimeLeft === 0 && !activeIsWhite) {
       endByTimeout(false);
     }
   }, 1000);
@@ -65,6 +71,6 @@ export function updateTimerText(timeLeft) {
     ":" +
     (timerSeconds < 10 ? "0" : "") +
     timerSeconds;
-  timerText.style.color = turn.isWhite ? "black" : "white";
-  timerCon.style.backgroundColor = turn.isWhite ? "white" : "black";
+  timerText.style.color = activeIsWhite ? "black" : "white";
+  timerCon.style.backgroundColor = activeIsWhite ? "white" : "black";
 }
