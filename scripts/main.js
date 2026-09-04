@@ -646,7 +646,16 @@ function applyDebugLayer() {
     const bit = BigInt(sq);
     const rank = Math.floor(sq / 8);
     const file = sq % 8;
-    if (debug.boardIndex) cell.textContent += sq;
+    if (debug.boardIndex) {
+      const childEl = document.createElement("div");
+      childEl.style.position = "absolute";
+      childEl.style.bottom = "0";
+      childEl.style.right = "0";
+      childEl.style.fontSize = "12px";
+      cell.style.position = "relative";
+      cell.appendChild(childEl);
+      childEl.textContent += sq;
+    }
 
     if (debug.nonMoved && (boards.notMovedPieces >> bit) & 1n) {
       cell.style.backgroundColor =
