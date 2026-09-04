@@ -10,7 +10,7 @@
       type="text/css"
     />
     <link href="styles/style.css" rel="stylesheet" type="text/css" />
-    <script async src="scripts/main.js"></script>
+    <script type="module" src="scripts/main.js"></script>
   </head>
   <body>
     <div id="mainDiv" class="mainContainer">
@@ -61,6 +61,18 @@
         <h2 id="gameOverTitle" class="game-over-title"></h2>
         <p id="gameOverSubtitle" class="game-over-subtitle"></p>
         <button type="button" class="game-over-btn" onclick="resetBoard()">Play Again</button>
+      </div>
+    </div>
+    <div id="promotionOverlay" class="promotion-overlay" hidden>
+      <div
+        class="promotion-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="promotionTitle"
+      >
+        <h2 id="promotionTitle" class="promotion-title">Promote pawn</h2>
+        <p class="promotion-subtitle">Choose a piece</p>
+        <div id="promotionChoices" class="promotion-choices"></div>
       </div>
     </div>
   </body>
