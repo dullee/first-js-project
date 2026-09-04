@@ -61,12 +61,13 @@ const defaultBoards = {
   blackKing: 0x1000000000000000n,
 };
 const unicodePieces = {
-  K: "♔",
-  Q: "♕",
-  R: "♖",
-  B: "♗",
-  N: "♘",
-  P: "♙",
+  // use filled glyphs for both sides; white is colored via CSS
+  K: "♚",
+  Q: "♛",
+  R: "♜",
+  B: "♝",
+  N: "♞",
+  P: "♟",
   k: "♚",
   q: "♛",
   r: "♜",
@@ -206,12 +207,14 @@ function showMoveHints(fromIndex) {
 }
 
 function setPieceDragImage(e, symbol) {
+  const isWhite = symbol === symbol.toUpperCase();
   const ghost = document.createElement("div");
-  ghost.className = "drag-ghost";
+  ghost.className =
+    "drag-ghost " + (isWhite ? "piece-white" : "piece-black");
   ghost.textContent = unicodePieces[symbol];
   document.body.appendChild(ghost);
-  e.dataTransfer.setDragImage(ghost, 34, 34);
-  // remove after the browser has captured the drag image
+  // snapshot after layout so the glyph paints with the correct font fallback
+  e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2);
   requestAnimationFrame(() => ghost.remove());
 }
 
@@ -230,7 +233,12 @@ function renderBoard() {
       cell.style.cursor = piece ? "grab" : "default";
       cell.style.background = (rank + file) % 2 === 0 ? "#b58863" : "#f0d9b5";
       cell.dataset.sq = sq; // store the index on the cell
-      cell.textContent += piece ? unicodePieces[piece.symbol] : "";
+      if (piece) {
+        cell.classList.add(
+          piece.board.startsWith("white") ? "piece-white" : "piece-black",
+        );
+        cell.textContent = unicodePieces[piece.symbol];
+      }
 
       // drag events
       if (piece) {
@@ -325,12 +333,8 @@ function isValidPawnMove(from, to, isWhite) {
   const diagLeft = isWhite ? 7 : -7;
   const diagRight = isWhite ? 9 : -9;
   if (diff === diagLeft) {
-    console.log("left");
-
     return (enemyPieces >> BigInt(to)) & 1n ? true : false;
   } else if (diff === diagRight) {
-    console.log("right");
-
     return (enemyPieces >> BigInt(to)) & 1n ? true : false;
   }
 
@@ -372,8 +376,6 @@ function isValidBishopMove(from, to, isWhite) {
 
   // walk every square between from and to
   let current = from + step;
-  console.log(BigInt(current));
-
   while (current !== to) {
     if ((getAllPieces() >> BigInt(current)) & 1n) return false; // something is in the way
     current += step;
@@ -505,20 +507,156 @@ function performCastle(from, to, isWhite) {
     castling.blackQueenSide = false;
   }
 }
-function isSquareAttacked(index, byWhite) {
-  // check if any enemy piece can move to this square
-  const enemyPieces = byWhite ? getWhitePieces() : getBlackPieces();
-  let bb = enemyPieces;
-  while (bb) {
-    const sq = Number(BigInt.asUintN(64, bb & -bb).toString(2).length) - 1;
-    const attacker = getSquare(sq);
-    if (attacker) {
-      const validator = moveValidators[attacker.symbol];
-      if (validator && validator(sq, index, byWhite)) {
-        console.log("found attacking piece", index, attacker);
+function bitScanForward(bb) {
+  // index of the least-significant set bit (0-63)
+  let bit = bb & -bb;
+  let index = 0;
+  if (bit > 0xffffffffn) {
+    bit >>= 32n;
+    index += 32;
+  }
+  if (bit > 0xffffn) {
+    bit >>= 16n;
+    index += 16;
+  }
+  if (bit > 0xffn) {
+    bit >>= 8n;
+    index += 8;
+  }
+  if (bit > 0xfn) {
+    bit >>= 4n;
+    index += 4;
+  }
+  if (bit > 0x3n) {
+    bit >>= 2n;
+    index += 2;
+  }
+  if (bit > 0x1n) index += 1;
+  return index;
+}
 
-        return true;
+function isOnBoardStep(from, to) {
+  if (to < 0 || to > 63) return false;
+  // reject wrapping across files when stepping by ±1/±7/±9
+  const fileDiff = Math.abs((to % 8) - (from % 8));
+  return fileDiff <= 1;
+}
+
+function rayAttacks(from, directions, occupied) {
+  let attacks = 0n;
+  for (const step of directions) {
+    let prev = from;
+    let sq = from + step;
+    while (isOnBoardStep(prev, sq)) {
+      attacks |= 1n << BigInt(sq);
+      if ((occupied >> BigInt(sq)) & 1n) break;
+      prev = sq;
+      sq += step;
+    }
+  }
+  return attacks;
+}
+
+function pieceAttackBitboard(from, symbol, isWhite, occupied) {
+  const fromFile = from % 8;
+  let attacks = 0n;
+
+  switch (symbol) {
+    case "P":
+    case "p": {
+      const rankStep = isWhite ? 8 : -8;
+      for (const fileStep of [-1, 1]) {
+        const toFile = fromFile + fileStep;
+        if (toFile < 0 || toFile > 7) continue;
+        const to = from + rankStep + fileStep;
+        if (to >= 0 && to <= 63) attacks |= 1n << BigInt(to);
       }
+      break;
+    }
+    case "N":
+    case "n": {
+      for (const [rankStep, fileStep] of [
+        [2, 1],
+        [2, -1],
+        [-2, 1],
+        [-2, -1],
+        [1, 2],
+        [1, -2],
+        [-1, 2],
+        [-1, -2],
+      ]) {
+        const toFile = fromFile + fileStep;
+        const to = from + rankStep * 8 + fileStep;
+        if (toFile < 0 || toFile > 7 || to < 0 || to > 63) continue;
+        attacks |= 1n << BigInt(to);
+      }
+      break;
+    }
+    case "B":
+    case "b":
+      attacks = rayAttacks(from, [9, 7, -9, -7], occupied);
+      break;
+    case "R":
+    case "r":
+      attacks = rayAttacks(from, [8, -8, 1, -1], occupied);
+      break;
+    case "Q":
+    case "q":
+      attacks = rayAttacks(from, [9, 7, -9, -7, 8, -8, 1, -1], occupied);
+      break;
+    case "K":
+    case "k": {
+      for (const [rankStep, fileStep] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+      ]) {
+        const toFile = fromFile + fileStep;
+        const to = from + rankStep * 8 + fileStep;
+        if (toFile < 0 || toFile > 7 || to < 0 || to > 63) continue;
+        attacks |= 1n << BigInt(to);
+      }
+      break;
+    }
+  }
+  return attacks;
+}
+
+function buildAttackedBitboard(byWhite) {
+  const attackers = byWhite ? getWhitePieces() : getBlackPieces();
+  const occupied = getAllPieces();
+  let attacked = 0n;
+  let bb = attackers;
+  while (bb) {
+    const from = bitScanForward(bb);
+    const piece = getSquare(from);
+    if (piece) {
+      attacked |= pieceAttackBitboard(from, piece.symbol, byWhite, occupied);
+    }
+    bb &= bb - 1n;
+  }
+  return attacked;
+}
+
+function isSquareAttacked(index, byWhite) {
+  // pure attack geometry — no move-validator side effects or logging
+  const attackers = byWhite ? getWhitePieces() : getBlackPieces();
+  const occupied = getAllPieces();
+  const targetBit = 1n << BigInt(index);
+  let bb = attackers;
+  while (bb) {
+    const from = bitScanForward(bb);
+    const piece = getSquare(from);
+    if (
+      piece &&
+      pieceAttackBitboard(from, piece.symbol, byWhite, occupied) & targetBit
+    ) {
+      return true;
     }
     bb &= bb - 1n;
   }
@@ -527,8 +665,8 @@ function isSquareAttacked(index, byWhite) {
 
 function isInCheck(isWhite) {
   const kingBoard = isWhite ? boards.whiteKing : boards.blackKing;
-  const kingIndex =
-    Number(BigInt.asUintN(64, kingBoard).toString(2).length) - 1;
+  if (!kingBoard) return false;
+  const kingIndex = bitScanForward(kingBoard);
   return isSquareAttacked(kingIndex, !isWhite);
 }
 
@@ -536,7 +674,7 @@ function hasLegalMoves(isWhite) {
   const pieces = isWhite ? getWhitePieces() : getBlackPieces();
   let bb = pieces;
   while (bb) {
-    const sq = Number(BigInt.asUintN(64, bb & -bb).toString(2).length) - 1;
+    const sq = bitScanForward(bb);
     const piece = getSquare(sq);
     const validator = moveValidators[piece.symbol];
 
@@ -704,18 +842,14 @@ const debug = {
 };
 const debugBoards = {
   enPassant: 0n,
-  attacked: 0n,
+  attackedByWhite: 0n,
+  attackedByBlack: 0n,
 };
 function applyDebugLayer() {
   const cells = document.querySelectorAll("td");
 
   cells.forEach((cell) => {
-    // reset any debug highlights first
-    const sq = parseInt(cell.dataset.sq);
-    const rank = Math.floor(sq / 8);
-    const file = sq % 8;
-
-    cell.style.outline = "none";
+    cell.classList.remove("attacked-white-piece", "attacked-black-piece");
   });
 
   if (!Object.values(debug).some(Boolean)) return; // nothing enabled, skip
@@ -745,9 +879,19 @@ function applyDebugLayer() {
       cell.style.backgroundColor = "mediumpurple";
     }
 
-    if (debug.attacked && (debugBoards.attacked >> bit) & 1n) {
-      cell.textContent = "X";
-      cell.style.color = "red";
+    if (debug.attacked) {
+      const piece = getSquare(sq);
+      if (piece) {
+        const isWhitePiece = piece.board.startsWith("white");
+        // white piece threatened by black
+        if (isWhitePiece && (debugBoards.attackedByBlack >> bit) & 1n) {
+          cell.classList.add("attacked-white-piece");
+        }
+        // black piece threatened by white
+        if (!isWhitePiece && (debugBoards.attackedByWhite >> bit) & 1n) {
+          cell.classList.add("attacked-black-piece");
+        }
+      }
     }
   });
 }
@@ -758,21 +902,9 @@ function updateScore(piece) {
 }
 
 function updateDebugBoards() {
-  // en passant — set the bit for the adjacent square
-  // debugBoards.enPassant = 0n;
-  // if (enPassantSquare !== null) {
-  //   // find pawns on rank 5 (white) or rank 4 (black) next to the en passant file
-  //   const rank = isWhiteTurn ? 4 : 3; // rank 5 for white to capture, rank 4 for black
-  //   const sq = rank * 8 + enPassantSquare;
-  //   debugBoards.enPassant |= 1n << BigInt(sq);
-  // }
-  // attacked squares — every square the current enemy can attack
-  debugBoards.attacked = 0n;
-  for (let sq = 0; sq < 64; sq++) {
-    if (isSquareAttacked(sq, !isWhiteTurn)) {
-      debugBoards.attacked |= 1n << BigInt(sq);
-    }
-  }
+  // both sides' attack maps so threatened pieces can be shown together
+  debugBoards.attackedByWhite = buildAttackedBitboard(true);
+  debugBoards.attackedByBlack = buildAttackedBitboard(false);
 }
 
 function toggleDebug(key) {
