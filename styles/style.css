@@ -50,20 +50,84 @@ img {
     "debug";
 }
 
-#timerContainer {
+.clocks-panel {
   grid-area: timer;
-  background-color: white;
-  transition: background-color 0.5s ease;
-  border-radius: 10px;
-  min-width: 120px;
-  padding: 4px 20px;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(100%, 280px);
   box-sizing: border-box;
 }
 
-#timerContainer h2 {
-  margin: 0.4em 0;
-  font-size: clamp(1.6rem, 4vw, 2.2rem);
+.clocks-panel.is-flipped {
+  flex-direction: column-reverse;
+}
+
+.clock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 140px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+.clock-white {
+  background: #f5f5f5;
+  color: #111;
+}
+
+.clock-black {
+  background: #1a1a1a;
+  color: #f5f5f5;
+}
+
+.clock-label {
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.clock-time {
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.clock.is-active {
+  border-color: #cdd26a;
+  box-shadow: 0 0 0 2px rgba(205, 210, 106, 0.35);
+  transform: scale(1.02);
+}
+
+.clock-white.is-active {
+  background: #fffef5;
+}
+
+.clock-black.is-active {
+  background: #252518;
+}
+
+.clock.is-low .clock-time {
+  color: #e74c3c;
+}
+
+.clock.is-flagged {
+  opacity: 0.7;
+}
+
+.clock.is-flagged .clock-time {
+  color: #e74c3c;
 }
 
 #board {
@@ -838,9 +902,11 @@ img {
     gap: 24px;
   }
 
-  #timerContainer {
+  .clocks-panel {
     justify-self: start;
     align-self: end;
+    width: 100%;
+    max-width: 240px;
   }
 
   .move-history {

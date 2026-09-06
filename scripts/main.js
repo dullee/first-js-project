@@ -11,7 +11,7 @@ import { game } from "./game-state.js";
 import { clearCheckAlert } from "./check-ui.js";
 import { hideGameOver } from "./game-over.js";
 import { renderBoard } from "./render.js";
-import { resetClocks } from "./timer.js";
+import { resetClocks, setTimePreset, updateClocksUI } from "./timer.js";
 import { displayDebugMenu, toggleDebug } from "./debug.js";
 import { maybeScheduleBotMove } from "./bot.js";
 import { clearPendingPromotion } from "./promotion.js";
@@ -42,7 +42,7 @@ export function resetBoard() {
   turn.isWhite = true;
   Object.assign(boards, defaultBoards);
   Object.assign(castling, defaultCastling);
-  resetClocks(600);
+  resetClocks();
   resetMoveHistory();
   clearPlanArrows();
 
@@ -54,9 +54,11 @@ export function resetBoard() {
 export function onGameSettingsChange() {
   const modeEl = document.getElementById("gameMode");
   const playAsEl = document.getElementById("playAs");
+  const timeEl = document.getElementById("timePreset");
   game.mode = modeEl.value;
   game.humanIsWhite = playAsEl.value === "white";
   playAsEl.disabled = game.mode === "human";
+  if (timeEl) setTimePreset(timeEl.value, { reset: false });
   resetBoard();
 }
 
@@ -68,6 +70,7 @@ window.toggleDebug = toggleDebug;
 
 resetMoveHistory();
 renderBoard();
+updateClocksUI();
 
 const playAsEl = document.getElementById("playAs");
 if (playAsEl) playAsEl.disabled = game.mode === "human";

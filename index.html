@@ -14,7 +14,16 @@
   </head>
   <body>
     <div id="mainDiv" class="mainContainer">
-      <div id="timerContainer"><h2 id="timerText">Time: 00:00</h2></div>
+      <div id="clocksPanel" class="clocks-panel" aria-label="Clocks">
+        <div id="clockBlack" class="clock clock-black" data-side="black">
+          <span class="clock-label">Black</span>
+          <span id="clockBlackTime" class="clock-time">10:00</span>
+        </div>
+        <div id="clockWhite" class="clock clock-white" data-side="white">
+          <span class="clock-label">White</span>
+          <span id="clockWhiteTime" class="clock-time">10:00</span>
+        </div>
+      </div>
       <div id="boardWrap" class="board-wrap">
         <div
           id="checkBanner"
@@ -89,6 +98,16 @@
         <select id="playAs" onchange="onGameSettingsChange()">
           <option value="white">White</option>
           <option value="black">Black</option>
+        </select>
+      </label>
+      <label class="control-field">
+        Time
+        <select id="timePreset" onchange="onGameSettingsChange()">
+          <option value="1+0">1+0 Bullet</option>
+          <option value="3+2">3+2 Blitz</option>
+          <option value="5+0">5+0 Blitz</option>
+          <option value="10+0" selected>10+0 Rapid</option>
+          <option value="15+10">15+10 Rapid</option>
         </select>
       </label>
       <button onclick="resetBoard()">Reset Game</button>
